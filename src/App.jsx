@@ -1,5 +1,4 @@
-/* eslint-disable no-undef */
-/* eslint-disable no-unused-vars */
+
 /* eslint-disable react-hooks/rules-of-hooks */
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -1621,7 +1620,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
             )}
           </div>
 
-          {/* ⭐ RECAPTCHA */}
+          {}
           <div className="mt-4 flex justify-center">
             <ReCAPTCHA
               sitekey="6Lef0BksAAAAAMmF0waIiIdZGE5Qh8fLtNmKTR-h"
