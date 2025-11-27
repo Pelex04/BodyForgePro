@@ -1623,7 +1623,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
           {}
           <div className="mt-4 flex justify-center">
             <ReCAPTCHA
-              sitekey="6Lef0BksAAAAAMmF0waIiIdZGE5Qh8fLtNmKTR-h"
+              sitekey="6Leu1xksAAAAAAAcZG-4IYM3eyy5v4O3td8GMiEV"
               ref={recaptchaRef}
             />
           </div>
