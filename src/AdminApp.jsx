@@ -5,16 +5,191 @@ import {
   Users, Settings, MessageSquare, Calendar, CreditCard, Dumbbell, 
   UserCheck, X, Plus, Search, Filter, Edit2, Trash2, Eye, Ban, 
   CheckCircle, XCircle, Mail, Phone, LogOut, BarChart3, TrendingUp,
-  Shield, Clock, MapPin, DollarSign, Activity
+  Shield, Clock, MapPin, DollarSign, Activity, Send
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
+// Email sending helper functions
+// At the top, fix the email functions:
 
-const supabaseUrl = 'https://qeolxzekqsbjwohjwahs.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFlb2x4emVrcXNiandvaGp3YWhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyNzU5MjcsImV4cCI6MjA3ODg1MTkyN30.Dg-6ptI5gUFrNsPzIRcD476z7z87j8NjvIN5_azWnzg';
+const sendBookingEmail = async (userEmail, bookingDetails, status) => {
+  try {
+    const emailSubject = status === 'completed' 
+      ? '✅ Booking Completed - BodyForge'
+      : status === 'cancelled' 
+      ? '❌ Booking Cancelled - BodyForge'
+      : '📋 Booking Updated - BodyForge';
+
+    const emailBody = `Dear Member,
+
+Your booking has been ${status.toUpperCase()}.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 BOOKING DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${bookingDetails.type === 'class' ? '🏋️ Class' : '👤 Trainer'}: ${bookingDetails.name}
+📅 Date: ${bookingDetails.date}
+🕐 Time: ${bookingDetails.time}
+📊 Status: ${status.toUpperCase()}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${status === 'completed' 
+  ? '🎉 Thank you for attending! We hope you had a great session.\n\nYour dedication to fitness is inspiring. Keep pushing your limits!' 
+  : status === 'cancelled' 
+  ? 'Your booking has been cancelled. If this was a mistake or you have any questions, please contact us immediately.\n\nWe hope to see you soon!' 
+  : 'Your booking status has been updated. Check your account for more details.'
+}
+
+Need help? Reply to this email or contact our support team.
+
+Stay strong! 💪
+
+Best regards,
+The BodyForge Team`;
+
+    console.log('Sending email to:', userEmail);
+
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: {
+        to: userEmail,
+        subject: emailSubject,
+        body: emailBody,
+        type: 'booking'
+      }
+    });
+
+    if (error) {
+      console.error('Supabase function error:', error);
+      throw error;
+    }
+
+    // Check if the response indicates success
+    if (data && data.success) {
+      console.log('Email sent successfully:', data);
+      return { success: true, data };
+    } else {
+      console.error('Email sending failed:', data);
+      return { success: false, error: data?.error || 'Unknown error' };
+    }
+  } catch (err) {
+    console.error('Email error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+// Fix membership email function
+const sendMembershipEmail = async (userEmail, membershipDetails, action) => {
+  try {
+    const subject = action === 'attached' 
+      ? '🎉 Membership Activated - BodyForge'
+      : '⚠️ Membership Deactivated - BodyForge';
+
+    const body = `Dear Member,
+
+Your membership has been ${action.toUpperCase()}.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 MEMBERSHIP DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Plan: ${membershipDetails.planName}
+Status: ${membershipDetails.status}
+Start Date: ${membershipDetails.startDate}
+End Date: ${membershipDetails.endDate}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${action === 'attached' 
+  ? '🎊 Welcome to BodyForge! Your membership is now active.\n\nYou can now book classes, schedule trainer sessions, and access all our facilities.\n\nLet\'s start your fitness journey!' 
+  : 'Your membership has been deactivated. If you believe this is an error, please contact us immediately.'
+}
+
+Questions? Contact our support team anytime.
+
+Best regards,
+The BodyForge Team`;
+
+    console.log('Attempting to send membership email to:', userEmail);
+
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: {
+        to: userEmail,
+        subject: subject,
+        body: body,
+        type: 'membership'
+      }
+    });
+
+    if (error) {
+      console.error('Supabase function error:', error);
+      throw error;
+    }
+    
+    return { success: true, data };
+  } catch (err) {
+    console.error('Email sending failed:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+// Fix inquiry response email
+const sendInquiryResponseEmail = async (userEmail, userName, responseMessage) => {
+  try {
+    const subject = '📧 Response to Your Inquiry - BodyForge';
+
+    const body = `Dear ${userName},
+
+Thank you for contacting BodyForge!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💬 OUR RESPONSE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${responseMessage}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+We're here to help you achieve your fitness goals. If you have any more questions, don't hesitate to reach out.
+
+Looking forward to seeing you at BodyForge! 💪
+
+Best regards,
+The BodyForge Team`;
+
+    console.log('Attempting to send inquiry response to:', userEmail);
+
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: {
+        to: userEmail,
+        subject: subject,
+        body: body,
+        type: 'inquiry'
+      }
+    });
+
+    if (error) {
+      console.error('Supabase function error:', error);
+      throw error;
+    }
+    
+    return { success: true, data };
+  } catch (err) {
+    console.error('Email sending failed:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+
+
+
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// ==================== TOAST NOTIFICATION ====================
+
 const Toast = ({ message, type, onClose }) => {
   const icons = {
     success: <CheckCircle className="w-6 h-6" />,
@@ -48,13 +223,13 @@ const ToastContainer = ({ toasts, removeToast }) => (
   </div>
 );
 
-// ==================== LOADING SPINNER ====================
+
 const LoadingSpinner = ({ size = 'md' }) => {
   const sizes = { sm: 'w-5 h-5', md: 'w-8 h-8', lg: 'w-12 h-12' };
   return <div className={`${sizes[size]} border-4 border-red-500/30 border-t-red-500 rounded-full animate-spin`} />;
 };
 
-// ==================== STATS CARD ====================
+
 const StatsCard = ({ icon: Icon, title, value, subtitle, color }) => (
   <div className="bg-zinc-900 rounded-xl p-6 border border-zinc-800 hover:border-red-500/50 transition-all">
     <div className="flex items-center justify-between mb-4">
@@ -68,7 +243,7 @@ const StatsCard = ({ icon: Icon, title, value, subtitle, color }) => (
   </div>
 );
 
-// ==================== MODAL ====================
+
 const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
   if (!isOpen) return null;
   
@@ -94,7 +269,7 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
   );
 };
 
-// ==================== ADMIN LOGIN ====================
+
 const AdminLogin = ({ onLoginSuccess, showToast }) => {
   const [credentials, setCredentials] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
@@ -104,28 +279,33 @@ const AdminLogin = ({ onLoginSuccess, showToast }) => {
   setLoading(true);
 
   try {
-    // 1. Authenticate user
+    
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email: credentials.email,
       password: credentials.password
     });
+    
     if (authError) throw authError;
 
     const userId = authData.user.id;
 
-    // 2. Check if user is an admin
+    
     const { data: adminData, error: adminError } = await supabase
       .from('admin_users')
       .select('id')
       .eq('id', userId)
-       // we expect only one record
+      .maybeSingle(); 
 
-    if (adminError || !adminData) {
+    if (adminError) throw adminError;
+    
+    if (!adminData) {
+     
+      await supabase.auth.signOut();
       throw new Error('Unauthorized: Admin access only');
     }
 
-    // 3. Success
-    showToast('Admin login successful! ', 'success');
+   
+    showToast('Admin login successful!', 'success');
     onLoginSuccess(authData.user);
 
   } catch (err) {
@@ -186,60 +366,86 @@ const AdminLogin = ({ onLoginSuccess, showToast }) => {
   );
 };
 
-// ==================== USERS MANAGEMENT ====================
+
 const UsersManagement = ({ showToast }) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserDetails, setShowUserDetails] = useState(false);
+  const [showAttachMembership, setShowAttachMembership] = useState(false);
+  const [membershipPlans, setMembershipPlans] = useState([]);
+  const [selectedPlan, setSelectedPlan] = useState('');
 
   useEffect(() => {
     loadUsers();
+    loadMembershipPlans();
   }, []);
 
-  const loadUsers = async () => {
+  const loadMembershipPlans = async () => {
     try {
-      // Get all memberships with plan details
-      const { data: memberships, error: membError } = await supabase
-        .from('user_memberships')
-        .select(`
-          *,
-          membership_plans(*)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (membError) throw membError;
-
-      // Get unique users
-      const userMap = new Map();
+      const { data, error } = await supabase
+        .from('membership_plans')
+        .select('*')
+        .order('price', { ascending: true });
       
-      for (const membership of memberships || []) {
-        if (!userMap.has(membership.user_id)) {
-          // Get user email from auth
-          const { data: userData } = await supabase.auth.admin.getUserById(membership.user_id);
-          
-          userMap.set(membership.user_id, {
-            id: membership.user_id,
-            email: userData?.user?.email || 'Unknown',
-            membership: membership,
-            plan: membership.membership_plans
-          });
-        }
-      }
-
-      setUsers(Array.from(userMap.values()));
+      if (error) throw error;
+      setMembershipPlans(data || []);
     } catch (err) {
-      console.error('Load users error:', err);
-      showToast(err.message, 'error');
-    } finally {
-      setLoading(false);
+      console.error('Load plans error:', err);
     }
   };
 
+  const loadUsers = async () => {
+  try {
+    
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (profilesError) throw profilesError;
+
+    
+    const { data: memberships, error: membError } = await supabase
+      .from('user_memberships')
+      .select(`
+        *,
+        membership_plans(*)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (membError) throw membError;
+
+   
+    const usersList = profiles.map(profile => {
+      const userMembership = memberships?.find(m => 
+        m.user_id === profile.id && m.status === 'active'
+      );
+
+      return {
+        id: profile.id,
+        email: profile.email,
+        created_at: profile.created_at,
+        deleted: profile.deleted || false,
+        deleted_at: profile.deleted_at,
+        membership: userMembership || null,
+        plan: userMembership?.membership_plans || null
+      };
+    });
+
+    setUsers(usersList);
+  } catch (err) {
+    console.error('Load users error:', err);
+    showToast(err.message, 'error');
+  } finally {
+    setLoading(false);
+  }
+};
+
   const viewUserDetails = async (user) => {
     try {
-      // Load user bookings and sessions
+      
       const [bookingsRes, sessionsRes] = await Promise.all([
         supabase.from('class_bookings').select('*, classes(*)').eq('user_id', user.id),
         supabase.from('trainer_sessions').select('*, trainers(*)').eq('user_id', user.id)
@@ -256,6 +462,151 @@ const UsersManagement = ({ showToast }) => {
     }
   };
 
+  
+const disableUser = async (userId, userEmail) => {
+  if (!confirm(`Are you sure you want to disable ${userEmail}? They will not be able to access their account.`)) return;
+
+  try {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ 
+        deleted: true,
+        deleted_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (error) throw error;
+
+    showToast('User disabled successfully', 'success');
+    loadUsers();
+    setShowUserDetails(false);
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
+
+
+const enableUser = async (userId, userEmail) => {
+  if (!confirm(`Reactivate account for ${userEmail}?`)) return;
+
+  try {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ 
+        deleted: false,
+        deleted_at: null
+      })
+      .eq('id', userId);
+
+    if (error) throw error;
+
+    showToast('User reactivated successfully', 'success');
+    loadUsers();
+    setShowUserDetails(false);
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
+// Add this function after the enableUser function
+// In UsersManagement component - fix deleteUserPermanently:
+const deleteUserPermanently = async (userId, userEmail) => {
+  const confirmText = `DELETE`;
+  const userInput = prompt(
+    `⚠️ WARNING: This will PERMANENTLY delete all data for ${userEmail}\n\n` +
+    `This includes:\n` +
+    `- Profile information\n` +
+    `- All bookings and sessions\n` +
+    `- Payment records\n` +
+    `- Membership data\n\n` +
+    `This action CANNOT be undone!\n\n` +
+    `Type "${confirmText}" to confirm:`
+  );
+
+  if (userInput !== confirmText) {
+    showToast('Deletion cancelled', 'error');
+    return;
+  }
+
+  console.log('Starting deletion for user:', userId);
+
+  try {
+    // Delete admin_users record first if exists
+    const { data: adminData, error: adminError } = await supabase
+      .from('admin_users')
+      .delete()
+      .eq('user_id', userId)
+      .select();
+    
+    console.log('Admin users delete result:', { adminData, adminError });
+
+    // Delete class bookings
+    const { data: bookingsData, error: bookingsError } = await supabase
+      .from('class_bookings')
+      .delete()
+      .eq('user_id', userId)
+      .select();
+    
+    console.log('Class bookings delete result:', { bookingsData, bookingsError });
+    if (bookingsError) throw bookingsError;
+
+    // Delete trainer sessions
+    const { data: sessionsData, error: sessionsError } = await supabase
+      .from('trainer_sessions')
+      .delete()
+      .eq('user_id', userId)
+      .select();
+    
+    console.log('Trainer sessions delete result:', { sessionsData, sessionsError });
+    if (sessionsError) throw sessionsError;
+
+    // Delete payments
+    const { data: paymentsData, error: paymentsError } = await supabase
+      .from('payments')
+      .delete()
+      .eq('user_id', userId)
+      .select();
+    
+    console.log('Payments delete result:', { paymentsData, paymentsError });
+    if (paymentsError) throw paymentsError;
+
+    // Delete memberships
+    const { data: membershipsData, error: membershipsError } = await supabase
+      .from('user_memberships')
+      .delete()
+      .eq('user_id', userId)
+      .select();
+    
+    console.log('Memberships delete result:', { membershipsData, membershipsError });
+    if (membershipsError) throw membershipsError;
+    
+    // Finally delete the profile
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', userId)
+      .select();
+
+    console.log('Profile delete result:', { profileData, profileError });
+    if (profileError) throw profileError;
+
+    if (!profileData || profileData.length === 0) {
+      throw new Error('Profile was not deleted - check RLS policies');
+    }
+
+    showToast('User permanently deleted successfully', 'success');
+    
+    // Close modal
+    setShowUserDetails(false);
+    setSelectedUser(null);
+    
+    // Reload users
+    await loadUsers();
+    
+  } catch (err) {
+    console.error('Delete user error:', err);
+    showToast(`Delete failed: ${err.message}`, 'error');
+  }
+};  
   const deactivateMembership = async (userId, membershipId) => {
     try {
       const { error } = await supabase
@@ -271,6 +622,64 @@ const UsersManagement = ({ showToast }) => {
       showToast(err.message, 'error');
     }
   };
+
+const attachMembership = async (e) => {
+  e.preventDefault();
+  if (!selectedPlan) {
+    showToast('Please select a membership plan', 'error');
+    return;
+  }
+
+  try {
+    const startDate = new Date().toISOString().split('T')[0];
+    const endDateObj = new Date();
+    endDateObj.setDate(endDateObj.getDate() + 30);
+    const endDate = endDateObj.toISOString().split('T')[0];
+
+    const { error } = await supabase.from('user_memberships').insert([
+      {
+        user_id: selectedUser.id,
+        plan_id: selectedPlan,
+        start_date: startDate,
+        end_date: endDate,
+        status: 'active',
+        payment_id: null 
+      },
+    ]);
+
+    if (error) throw error;
+
+    // Get plan details for email
+    const plan = membershipPlans.find(p => p.id === selectedPlan);
+    
+    // Send email
+    const emailResult = await sendMembershipEmail(selectedUser.email, {
+      planName: plan?.name || 'Premium',
+      status: 'ACTIVE',
+      startDate: new Date(startDate).toLocaleDateString(),
+      endDate: new Date(endDate).toLocaleDateString()
+    }, 'attached');
+
+    if (emailResult.success) {
+      showToast('Membership attached and email sent successfully! 📧', 'success');
+    } else {
+      showToast('Membership attached but email failed to send', 'error');
+    }
+    
+    // Close modals and refresh
+    setShowAttachMembership(false);
+    setSelectedPlan('');
+    setShowUserDetails(false);
+    
+    setTimeout(() => {
+      loadUsers();
+    }, 100);
+    
+  } catch (err) {
+    console.error('Attach membership error:', err);
+    showToast(err.message, 'error');
+  }
+};
 
   const filteredUsers = users.filter(u => 
     u.email?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -304,47 +713,62 @@ const UsersManagement = ({ showToast }) => {
           <table className="w-full">
             <thead className="bg-zinc-950 border-b border-zinc-800">
               <tr>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Email</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">User ID</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Plan</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Status</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Start Date</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">End Date</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Joined</th>
                 <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800">
-              {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-zinc-800/50 transition-colors">
-                  <td className="px-6 py-4 text-sm text-gray-300">{user.id.substring(0, 8)}...</td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm font-bold text-red-500">{user.plan?.name}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                      user.membership?.status === 'active' 
-                        ? 'bg-green-500/20 text-green-500' 
-                        : 'bg-red-500/20 text-red-500'
-                    }`}>
-                      {user.membership?.status?.toUpperCase()}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-400">
-                    {new Date(user.membership?.start_date).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-400">
-                    {new Date(user.membership?.end_date).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button
-                      onClick={() => viewUserDetails(user)}
-                      className="text-red-500 hover:text-red-400 font-bold text-sm"
-                    >
-                      VIEW DETAILS
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+           <tbody className="divide-y divide-zinc-800">
+  {filteredUsers.map((user) => (
+    <tr key={user.id} className={`hover:bg-zinc-800/50 transition-colors ${user.deleted ? 'opacity-50' : ''}`}>
+      <td className="px-6 py-4 text-sm text-white font-bold">
+        {user.email}
+        {user.deleted && <span className="ml-2 text-xs text-red-500 font-bold">(DISABLED)</span>}
+      </td>
+      <td className="px-6 py-4 text-sm text-gray-300">{user.id.substring(0, 8)}...</td>
+      <td className="px-6 py-4">
+        {user.plan ? (
+          <span className="text-sm font-bold text-red-500">{user.plan.name}</span>
+        ) : (
+          <span className="text-sm text-gray-500">No Membership</span>
+        )}
+      </td>
+      <td className="px-6 py-4">
+        {user.deleted ? (
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-500">
+            DISABLED
+          </span>
+        ) : user.membership ? (
+          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+            user.membership.status === 'active' 
+              ? 'bg-green-500/20 text-green-500' 
+              : 'bg-red-500/20 text-red-500'
+          }`}>
+            {user.membership.status.toUpperCase()}
+          </span>
+        ) : (
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-500/20 text-gray-500">
+            NO PLAN
+          </span>
+        )}
+      </td>
+      <td className="px-6 py-4 text-sm text-gray-400">
+        {new Date(user.created_at).toLocaleDateString()}
+      </td>
+      <td className="px-6 py-4 text-right">
+        <button
+          onClick={() => viewUserDetails(user)}
+          className="text-red-500 hover:text-red-400 font-bold text-sm"
+        >
+          VIEW DETAILS
+        </button>
+      </td>
+    </tr>
+  ))}
+</tbody>
           </table>
         </div>
       </div>
@@ -363,12 +787,22 @@ const UsersManagement = ({ showToast }) => {
               <h3 className="text-lg font-black text-white mb-4 uppercase">User Information</h3>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
+                  <p className="text-gray-400">Email</p>
+                  <p className="text-white font-bold">{selectedUser.email}</p>
+                </div>
+                <div>
                   <p className="text-gray-400">User ID</p>
                   <p className="text-white font-bold">{selectedUser.id}</p>
                 </div>
                 <div>
                   <p className="text-gray-400">Current Plan</p>
-                  <p className="text-red-500 font-bold">{selectedUser.plan?.name}</p>
+                  <p className="text-red-500 font-bold">{selectedUser.plan?.name || 'No Membership'}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400">Joined Date</p>
+                  <p className="text-white font-bold">
+                    {new Date(selectedUser.created_at).toLocaleDateString()}
+                  </p>
                 </div>
               </div>
             </div>
@@ -377,34 +811,49 @@ const UsersManagement = ({ showToast }) => {
             <div className="bg-zinc-800/50 rounded-lg p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-black text-white uppercase">Membership</h3>
-                {selectedUser.membership?.status === 'active' && (
-                  <button
-                    onClick={() => deactivateMembership(selectedUser.id, selectedUser.membership.id)}
-                    className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-bold text-xs uppercase flex items-center space-x-2"
-                  >
-                    <Ban className="w-4 h-4" />
-                    <span>DEACTIVATE</span>
-                  </button>
-                )}
-              </div>
-              <div className="grid grid-cols-3 gap-4 text-sm">
-                <div>
-                  <p className="text-gray-400">Status</p>
-                  <p className="text-white font-bold">{selectedUser.membership?.status}</p>
-                </div>
-                <div>
-                  <p className="text-gray-400">Start Date</p>
-                  <p className="text-white font-bold">
-                    {new Date(selectedUser.membership?.start_date).toLocaleDateString()}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-gray-400">End Date</p>
-                  <p className="text-white font-bold">
-                    {new Date(selectedUser.membership?.end_date).toLocaleDateString()}
-                  </p>
+                <div className="flex space-x-2">
+                  {!selectedUser.membership && (
+                    <button
+                      onClick={() => setShowAttachMembership(true)}
+                      className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold text-xs uppercase flex items-center space-x-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>ATTACH</span>
+                    </button>
+                  )}
+                  {selectedUser.membership?.status === 'active' && (
+                    <button
+                      onClick={() => deactivateMembership(selectedUser.id, selectedUser.membership.id)}
+                      className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-bold text-xs uppercase flex items-center space-x-2"
+                    >
+                      <Ban className="w-4 h-4" />
+                      <span>DEACTIVATE</span>
+                    </button>
+                  )}
                 </div>
               </div>
+              {selectedUser.membership ? (
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-400">Status</p>
+                    <p className="text-white font-bold">{selectedUser.membership.status}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400">Start Date</p>
+                    <p className="text-white font-bold">
+                      {new Date(selectedUser.membership.start_date).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400">End Date</p>
+                    <p className="text-white font-bold">
+                      {new Date(selectedUser.membership.end_date).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-400 text-sm">No active membership</p>
+              )}
             </div>
 
             {/* Class Bookings */}
@@ -464,14 +913,85 @@ const UsersManagement = ({ showToast }) => {
                 <p className="text-gray-400 text-sm">No trainer sessions</p>
               )}
             </div>
+
+ {/* Disable/Enable and Delete User Buttons */}
+<div className="border-t border-zinc-700 pt-4 space-y-3">
+  {selectedUser.deleted ? (
+    <button
+      onClick={() => enableUser(selectedUser.id, selectedUser.email)}
+      className="w-full py-3 bg-green-500/20 hover:bg-green-500 text-green-500 hover:text-white rounded-lg font-bold text-sm uppercase transition-all flex items-center justify-center space-x-2"
+    >
+      <CheckCircle className="w-5 h-5" />
+      <span>REACTIVATE USER</span>
+    </button>
+  ) : (
+    <button
+      onClick={() => disableUser(selectedUser.id, selectedUser.email)}
+      className="w-full py-3 bg-orange-500/20 hover:bg-orange-500 text-orange-500 hover:text-white rounded-lg font-bold text-sm uppercase transition-all flex items-center justify-center space-x-2"
+    >
+      <Ban className="w-5 h-5" />
+      <span>DISABLE USER</span>
+    </button>
+  )}
+  
+  {/* Permanent Dlete Button */}
+  <button
+    onClick={() => deleteUserPermanently(selectedUser.id, selectedUser.email)}
+    className="w-full py-3 bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white rounded-lg font-bold text-sm uppercase transition-all flex items-center justify-center space-x-2 border-2 border-red-500/50"
+  >
+    <Trash2 className="w-5 h-5" />
+    <span> DELETE PERMANENTLY</span>
+  </button>
+</div>
           </div>
         )}
+      </Modal>
+
+      {/* Attach Membership Modal */}
+      <Modal
+        isOpen={showAttachMembership}
+        onClose={() => {
+          setShowAttachMembership(false);
+          setSelectedPlan('');
+        }}
+        title="Attach Membership Plan"
+      >
+        <form onSubmit={attachMembership} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-gray-400 mb-2 uppercase">
+              Select Membership Plan
+            </label>
+            <select
+              value={selectedPlan}
+              onChange={(e) => setSelectedPlan(e.target.value)}
+              className="w-full px-4 py-3 bg-black border-2 border-zinc-700 rounded-lg text-white focus:border-red-500 focus:outline-none"
+              required
+            >
+              <option value="">-- Select Plan --</option>
+              {membershipPlans.map((plan) => (
+                <option key={plan.id} value={plan.id}>
+                  {plan.name} - MWK {plan.price.toLocaleString()}/month
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-2">
+              Membership will be active for 30 days from today
+            </p>
+          </div>
+
+          <button
+            type="submit"
+            className="w-full py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-lg font-bold uppercase"
+          >
+            ATTACH MEMBERSHIP
+          </button>
+        </form>
       </Modal>
     </>
   );
 };
 
-// ==================== CLASSES MANAGEMENT ====================
+
 const ClassesManagement = ({ showToast }) => {
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -654,7 +1174,7 @@ const ClassesManagement = ({ showToast }) => {
   );
 };
 
-// ==================== TRAINERS MANAGEMENT ====================
+
 const TrainersManagement = ({ showToast }) => {
   const [trainers, setTrainers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -838,88 +1358,174 @@ const TrainersManagement = ({ showToast }) => {
   );
 };
 
-// ==================== BOOKINGS MANAGEMENT ====================
+
 const BookingsManagement = ({ showToast }) => {
   const [bookings, setBookings] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeSubTab, setActiveSubTab] = useState('classes');
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
 
+ 
+const deleteBooking = async (id, type) => {
+  if (!confirm('Are you sure you want to permanently delete this booking?')) return;
+
+  try {
+    const table = type === 'class' ? 'class_bookings' : 'trainer_sessions';
+    
+    // Delete the booking/session
+    const { error } = await supabase
+      .from(table)
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    
+    showToast('Booking deleted successfully', 'success');
+    
+    // Close modal and refresh
+    setShowDetailsModal(false);
+    setSelectedItem(null);
+    await loadBookings();
+    
+  } catch (err) {
+    console.error('Delete booking error:', err);
+    showToast(err.message, 'error');
+  }
+};
+
+const updateBookingStatus = async (id, status, type) => {
+  try {
+    const table = type === 'class' ? 'class_bookings' : 'trainer_sessions';
+    const { error } = await supabase
+      .from(table)
+      .update({ status })
+      .eq('id', id);
+
+    if (error) throw error;
+
+    // Send email notification
+    const bookingDetails = {
+      type,
+      name: type === 'class' ? selectedItem.classes?.title : selectedItem.trainers?.name,
+      date: new Date(type === 'class' ? selectedItem.booking_date : selectedItem.session_date).toLocaleDateString(),
+      time: type === 'class' ? selectedItem.booking_time : selectedItem.session_time
+    };
+
+    const emailResult = await sendBookingEmail(selectedItem.user_email, bookingDetails, status);
+    
+    if (emailResult.success) {
+      showToast('Status updated and email sent successfully! 📧', 'success');
+    } else {
+      showToast('Status updated but email failed to send', 'error');
+    }
+    
+    // Close modal and refresh
+    setShowDetailsModal(false);
+    setSelectedItem(null);
+    
+    setTimeout(() => {
+      loadBookings();
+    }, 100);
+    
+  } catch (err) {
+    console.error('Update booking error:', err);
+    showToast(err.message, 'error');
+  }
+};
   useEffect(() => {
     loadBookings();
   }, []);
 
-  const loadBookings = async () => {
-    try {
-      // Load class bookings
-      const { data: classBookings, error: classError } = await supabase
-        .from('class_bookings')
-        .select(`
-          *,
-          classes(*),
-          payments(*)
-        `)
-        .order('created_at', { ascending: false });
+const loadBookings = async () => {
+  try {
+   
+    const { data: classBookings, error: classError } = await supabase
+      .from('class_bookings')
+      .select(`
+        *,
+        classes(*),
+        payments(*)
+      `)
+      .order('created_at', { ascending: false });
 
-      // Load trainer sessions
-      const { data: trainerSessions, error: sessionError } = await supabase
-        .from('trainer_sessions')
-        .select(`
-          *,
-          trainers(*),
-          payments(*)
-        `)
-        .order('created_at', { ascending: false });
+   
+    const { data: trainerSessions, error: sessionError } = await supabase
+      .from('trainer_sessions')
+      .select(`
+        *,
+        trainers(*),
+        payments(*)
+      `)
+      .order('created_at', { ascending: false });
 
-      if (classError) throw classError;
-      if (sessionError) throw sessionError;
+    if (classError) throw classError;
+    if (sessionError) throw sessionError;
 
-      // Get user emails for all bookings
-      const bookingsWithEmails = await Promise.all(
-        (classBookings || []).map(async (booking) => {
-          const { data: userData } = await supabase.auth.admin.getUserById(booking.user_id);
-          return {
-            ...booking,
-            user_email: userData?.user?.email || 'Unknown'
-          };
-        })
-      );
+   
+    const bookingsWithEmails = await Promise.all(
+      (classBookings || []).map(async (booking) => {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('id', booking.user_id)
+          .maybeSingle(); 
+        
+        return {
+          ...booking,
+          user_email: profile?.email || 'Unknown'
+        };
+      })
+    );
 
-      const sessionsWithEmails = await Promise.all(
-        (trainerSessions || []).map(async (session) => {
-          const { data: userData } = await supabase.auth.admin.getUserById(session.user_id);
-          return {
-            ...session,
-            user_email: userData?.user?.email || 'Unknown'
-          };
-        })
-      );
+    const sessionsWithEmails = await Promise.all(
+      (trainerSessions || []).map(async (session) => {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('id', session.user_id)
+          .maybeSingle(); 
+        
+        return {
+          ...session,
+          user_email: profile?.email || 'Unknown'
+        };
+      })
+    );
 
-      setBookings(bookingsWithEmails);
-      setSessions(sessionsWithEmails);
-    } catch (err) {
-      console.error('Load bookings error:', err);
-      showToast(err.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+    setBookings(bookingsWithEmails);
+    setSessions(sessionsWithEmails);
+  } catch (err) {
+    console.error('Load bookings error:', err);
+    showToast(err.message, 'error');
+  } finally {
+    setLoading(false);
+  }
+};
 
-  const updateBookingStatus = async (id, status, type) => {
-    try {
-      const table = type === 'class' ? 'class_bookings' : 'trainer_sessions';
-      const { error } = await supabase
-        .from(table)
-        .update({ status })
-        .eq('id', id);
+const viewDetails = async (item, type) => {
+  try {
+    
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', item.user_id)
+      .maybeSingle(); 
+    
+    if (error) throw error;
+    
+    setSelectedItem({
+      ...item,
+      type,
+      full_user: profile || { email: 'Unknown' }
+    });
+    setShowDetailsModal(true);
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
 
-      if (error) throw error;
-      showToast('Status updated successfully', 'success');
-      loadBookings();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  };
 
   if (loading) {
     return (
@@ -964,7 +1570,6 @@ const BookingsManagement = ({ showToast }) => {
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Class</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Date</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Time</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Payment</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Status</th>
                   <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase">Actions</th>
                 </tr>
@@ -981,13 +1586,6 @@ const BookingsManagement = ({ showToast }) => {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-400">{booking.booking_time}</td>
                     <td className="px-6 py-4">
-                      {booking.payments ? (
-                        <span className="text-xs text-green-500 font-bold">✓ PAID</span>
-                      ) : (
-                        <span className="text-xs text-gray-500">NO PAYMENT</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                         booking.status === 'confirmed' 
                           ? 'bg-green-500/20 text-green-500' 
@@ -997,15 +1595,12 @@ const BookingsManagement = ({ showToast }) => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <select
-                        value={booking.status}
-                        onChange={(e) => updateBookingStatus(booking.id, e.target.value, 'class')}
-                        className="bg-zinc-800 border border-zinc-700 rounded px-3 py-1 text-xs text-white font-bold"
+                      <button
+                        onClick={() => viewDetails(booking, 'class')}
+                        className="text-red-500 hover:text-red-400 font-bold text-sm"
                       >
-                        <option value="confirmed">CONFIRMED</option>
-                        <option value="cancelled">CANCELLED</option>
-                        <option value="completed">COMPLETED</option>
-                      </select>
+                        VIEW
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -1023,7 +1618,6 @@ const BookingsManagement = ({ showToast }) => {
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Trainer</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Date</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Time</th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Payment</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase">Status</th>
                   <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase">Actions</th>
                 </tr>
@@ -1041,13 +1635,6 @@ const BookingsManagement = ({ showToast }) => {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-400">{session.session_time}</td>
                     <td className="px-6 py-4">
-                      {session.payments ? (
-                        <span className="text-xs text-green-500 font-bold">✓ PAID</span>
-                      ) : (
-                        <span className="text-xs text-gray-500">NO PAYMENT</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                         session.status === 'scheduled' 
                           ? 'bg-blue-500/20 text-blue-500' 
@@ -1059,15 +1646,12 @@ const BookingsManagement = ({ showToast }) => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <select
-                        value={session.status}
-                        onChange={(e) => updateBookingStatus(session.id, e.target.value, 'session')}
-                        className="bg-zinc-800 border border-zinc-700 rounded px-3 py-1 text-xs text-white font-bold"
+                      <button
+                        onClick={() => viewDetails(session, 'trainer')}
+                        className="text-red-500 hover:text-red-400 font-bold text-sm"
                       >
-                        <option value="scheduled">SCHEDULED</option>
-                        <option value="completed">COMPLETED</option>
-                        <option value="cancelled">CANCELLED</option>
-                      </select>
+                        VIEW
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -1076,11 +1660,131 @@ const BookingsManagement = ({ showToast }) => {
           </div>
         </div>
       )}
+
+      {/* Details Modal */}
+      <Modal
+        isOpen={showDetailsModal}
+        onClose={() => setShowDetailsModal(false)}
+        title={selectedItem?.type === 'class' ? 'Class Booking Details' : 'Trainer Session Details'}
+      >
+        {selectedItem && (
+          <div className="space-y-4">
+            {/* User Info */}
+            <div className="bg-zinc-800/50 rounded-lg p-4">
+              <h3 className="text-lg font-black text-white mb-3 uppercase">User Information</h3>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-gray-400">Email</p>
+                  <p className="text-white font-bold">{selectedItem.user_email}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400">User ID</p>
+                  <p className="text-white font-mono text-xs">{selectedItem.user_id}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Booking/Session Info */}
+            <div className="bg-zinc-800/50 rounded-lg p-4">
+              <h3 className="text-lg font-black text-white mb-3 uppercase">
+                {selectedItem.type === 'class' ? 'Class Details' : 'Trainer Details'}
+              </h3>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-gray-400">{selectedItem.type === 'class' ? 'Class' : 'Trainer'}</p>
+                  <p className="text-gray-400">{selectedItem.type === 'class' ? 'Class' : 'Trainer'}</p>
+                  <p className="text-red-500 font-bold">
+                    {selectedItem.type === 'class' 
+                      ? selectedItem.classes?.title 
+                      : selectedItem.trainers?.name}
+                  </p>
+                  {selectedItem.type === 'trainer' && (
+                    <p className="text-xs text-gray-500">{selectedItem.trainers?.specialty}</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-gray-400">Date & Time</p>
+                  <p className="text-white font-bold">
+                    {new Date(selectedItem.type === 'class' ? selectedItem.booking_date : selectedItem.session_date).toLocaleDateString()}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {selectedItem.type === 'class' ? selectedItem.booking_time : selectedItem.session_time}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-400">Status</p>
+                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
+                    selectedItem.status === 'confirmed' || selectedItem.status === 'scheduled'
+                      ? 'bg-green-500/20 text-green-500' 
+                      : selectedItem.status === 'completed'
+                      ? 'bg-blue-500/20 text-blue-500'
+                      : 'bg-red-500/20 text-red-500'
+                  }`}>
+                    {selectedItem.status?.toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-gray-400">Payment</p>
+                  <p className="text-white font-bold">
+                    {selectedItem.payments ? (
+                      <span className="text-green-500">✓ PAID</span>
+                    ) : (
+                      <span className="text-gray-500">No Payment</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Notes (for trainer sessions) */}
+            {selectedItem.type === 'trainer' && selectedItem.notes && (
+              <div className="bg-zinc-800/50 rounded-lg p-4">
+                <h3 className="text-lg font-black text-white mb-2 uppercase">Notes</h3>
+                <p className="text-gray-300 text-sm">{selectedItem.notes}</p>
+              </div>
+            )}
+
+            {/* Update Status */}
+            <div className="bg-zinc-800/50 rounded-lg p-4">
+              <h3 className="text-lg font-black text-white mb-3 uppercase">Update Status</h3>
+              <select
+                value={selectedItem.status}
+                onChange={(e) => updateBookingStatus(selectedItem.id, e.target.value, selectedItem.type)}
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-white font-bold"
+              >
+                {selectedItem.type === 'class' ? (
+                  <>
+                    <option value="confirmed">CONFIRMED</option>
+                    <option value="cancelled">CANCELLED</option>
+                    <option value="completed">COMPLETED</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="scheduled">SCHEDULED</option>
+                    <option value="completed">COMPLETED</option>
+                    <option value="cancelled">CANCELLED</option>
+                  </>
+                )}
+              </select>
+                {/* Delete Booking Button */}
+  {(selectedItem.status === 'cancelled' || selectedItem.status === 'completed') && (
+    <button
+      onClick={() => deleteBooking(selectedItem.id, selectedItem.type)}
+      className="w-full py-3 bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white rounded-lg font-bold text-sm uppercase transition-all flex items-center justify-center space-x-2"
+    >
+      <Trash2 className="w-5 h-5" />
+      <span>DELETE BOOKING</span>
+    </button>
+  )}
+            </div>
+          </div>
+        )}
+      </Modal>
     </>
   );
 };
 
-// ==================== INQUIRIES MANAGEMENT ====================
+
 const InquiriesManagement = ({ showToast }) => {
   const [inquiries, setInquiries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1091,6 +1795,80 @@ const InquiriesManagement = ({ showToast }) => {
     loadInquiries();
   }, []);
 
+const deleteInquiry = async (id) => {
+  if (!confirm('Are you sure you want to permanently delete this inquiry?')) return;
+
+  try {
+    const { error } = await supabase
+      .from('contact_inquiries')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    
+    showToast('Inquiry deleted successfully', 'success');
+    
+    // Close modal and refresh
+    setShowInquiryDetails(false);
+    setSelectedInquiry(null);
+    await loadInquiries();
+    
+  } catch (err) {
+    console.error('Delete inquiry error:', err);
+    showToast(err.message, 'error');
+  }
+};
+
+// Add new state for response modal
+const [showResponseModal, setShowResponseModal] = useState(false);
+const [responseMessage, setResponseMessage] = useState('');
+
+// Add this function to send email response
+const sendResponse = async () => {
+  if (!responseMessage.trim()) {
+    showToast('Please enter a response message', 'error');
+    return;
+  }
+
+  try {
+    const emailResult = await sendInquiryResponseEmail(
+      selectedInquiry.email,
+      selectedInquiry.name,
+      responseMessage
+    );
+
+    if (emailResult.success) {
+      // Update status to responded
+      const { error } = await supabase
+        .from('contact_inquiries')
+        .update({ status: 'responded' })
+        .eq('id', selectedInquiry.id);
+
+      if (error) throw error;
+
+      showToast('Response sent successfully! 📧', 'success');
+      setShowResponseModal(false);
+      setResponseMessage('');
+      setShowInquiryDetails(false);
+      
+      setTimeout(() => {
+        loadInquiries();
+      }, 100);
+    } else {
+      showToast('Failed to send response email', 'error');
+    }
+  } catch (err) {
+    console.error('Send response error:', err);
+    showToast(err.message, 'error');
+  }
+};
+
+const contactUser = (email, name) => {
+  // Opens default email client
+  const subject = encodeURIComponent(`Re: Your BodyForge Inquiry`);
+  const body = encodeURIComponent(`Dear ${name},\n\nThank you for contacting BodyForge.\n\n`);
+  window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+};  
   const loadInquiries = async () => {
     try {
       const { data, error } = await supabase
@@ -1214,20 +1992,74 @@ const InquiriesManagement = ({ showToast }) => {
               <p className="text-white leading-relaxed">{selectedInquiry.message}</p>
             </div>
 
-            <div className="flex space-x-3">
-              <button
-                onClick={() => updateInquiryStatus(selectedInquiry.id, 'responded')}
-                className="flex-1 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold uppercase"
-              >
-                MARK AS RESPONDED
-              </button>
-              <button
-                onClick={() => updateInquiryStatus(selectedInquiry.id, 'closed')}
-                className="flex-1 py-3 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg font-bold uppercase"
-              >
-                CLOSE
-              </button>
-            </div>
+ <div className="space-y-3">
+  {/* Send Response Button */}
+  <button
+    onClick={() => setShowResponseModal(true)}
+    className="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-bold uppercase flex items-center justify-center space-x-2"
+  >
+    <Send className="w-5 h-5" />
+    <span>SEND RESPONSE</span>
+  </button>
+
+  <div className="flex space-x-3">
+    <button
+      onClick={() => updateInquiryStatus(selectedInquiry.id, 'responded')}
+      className="flex-1 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-bold uppercase"
+    >
+      MARK AS RESPONDED
+    </button>
+    <button
+      onClick={() => updateInquiryStatus(selectedInquiry.id, 'closed')}
+      className="flex-1 py-3 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg font-bold uppercase"
+    >
+      CLOSE
+    </button>
+  </div>
+
+  {selectedInquiry.status === 'closed' && (
+    <button
+      onClick={() => deleteInquiry(selectedInquiry.id)}
+      className="w-full py-3 bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white rounded-lg font-bold uppercase flex items-center justify-center space-x-2"
+    >
+      <Trash2 className="w-5 h-5" />
+      <span>DELETE INQUIRY</span>
+    </button>
+  )}
+</div>
+
+{/* Add Response Modal */}
+<Modal
+  isOpen={showResponseModal}
+  onClose={() => {
+    setShowResponseModal(false);
+    setResponseMessage('');
+  }}
+  title="Send Response to User"
+>
+  <div className="space-y-4">
+    <div>
+      <label className="block text-xs font-bold text-gray-400 mb-2 uppercase">
+        Response Message
+      </label>
+      <textarea
+        value={responseMessage}
+        onChange={(e) => setResponseMessage(e.target.value)}
+        className="w-full px-4 py-3 bg-black border-2 border-zinc-700 rounded-lg text-white focus:border-red-500 focus:outline-none resize-none"
+        rows="6"
+        placeholder="Type your response here..."
+      />
+    </div>
+    
+    <button
+      onClick={sendResponse}
+      className="w-full py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-bold uppercase flex items-center justify-center space-x-2"
+    >
+      <Send className="w-5 h-5" />
+      <span>SEND EMAIL</span>
+    </button>
+  </div>
+</Modal>
           </div>
         )}
       </Modal>
@@ -1235,7 +2067,7 @@ const InquiriesManagement = ({ showToast }) => {
   );
 };
 
-// ==================== DASHBOARD ====================
+
 const Dashboard = ({ showToast }) => {
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -1252,75 +2084,76 @@ const Dashboard = ({ showToast }) => {
     loadStats();
   }, []);
 
-  const loadStats = async () => {
-    try {
-      // Get unique users from auth.users table
-      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
-      
-      // Get memberships
-      const { data: memberships, error: membError } = await supabase
-        .from('user_memberships')
-        .select('*');
+const loadStats = async () => {
+  try {
+    // Get all profiles
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, deleted');
 
-      // Get bookings
-      const { data: bookings, error: bookError } = await supabase
-        .from('class_bookings')
-        .select('*');
+    // Get all memberships
+    const { data: memberships, error: membError } = await supabase
+      .from('user_memberships')
+      .select('*');
 
-      // Get trainer sessions
-      const { data: sessions, error: sessError } = await supabase
-        .from('trainer_sessions')
-        .select('*');
+    // Get bookings
+    const { data: bookings, error: bookError } = await supabase
+      .from('class_bookings')
+      .select('*');
 
-      // Get inquiries
-      const { data: inquiries, error: inqError } = await supabase
-        .from('contact_inquiries')
-        .select('*')
-        .eq('status', 'new');
+    // Get sessions
+    const { data: sessions, error: sessError } = await supabase
+      .from('trainer_sessions')
+      .select('*');
 
-      // Get payments
-      const { data: payments, error: payError } = await supabase
-        .from('payments')
-        .select('amount, status')
-        .eq('status', 'completed');
+    // Get pending inquiries
+    const { data: inquiries, error: inqError } = await supabase
+      .from('contact_inquiries')
+      .select('*')
+      .eq('status', 'new');
 
-      // Get trainers count
-      const { count: trainersCount } = await supabase
-        .from('trainers')
-        .select('*', { count: 'exact', head: true });
+    // Get completed payments
+    const { data: payments, error: payError } = await supabase
+      .from('payments')
+      .select('amount, status')
+      .eq('status', 'completed');
 
-      // Get classes count
-      const { count: classesCount } = await supabase
-        .from('classes')
-        .select('*', { count: 'exact', head: true });
+    // Count trainers
+    const { count: trainersCount } = await supabase
+      .from('trainers')
+      .select('*', { count: 'exact', head: true });
 
-      // Calculate stats
-      const totalRevenue = payments?.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) || 0;
-      const activeMembers = memberships?.filter(m => m.status === 'active').length || 0;
-      
-      // Get unique users who have memberships
-      const uniqueUserIds = new Set(memberships?.map(m => m.user_id));
-      const totalUsers = uniqueUserIds.size;
+    // Count classes
+    const { count: classesCount } = await supabase
+      .from('classes')
+      .select('*', { count: 'exact', head: true });
 
-      // Total bookings include both class bookings and trainer sessions
-      const totalBookings = (bookings?.length || 0) + (sessions?.length || 0);
+    // Calculate accurate stats
+    const totalRevenue = payments?.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) || 0;
+    const activeMembers = memberships?.filter(m => m.status === 'active').length || 0;
+    
+    // Filter out deleted/disabled users for total count
+    const activeUsers = profiles?.filter(p => !p.deleted).length || 0;
+    const totalUsers = profiles?.length || 0;
+    
+    const totalBookings = (bookings?.length || 0) + (sessions?.length || 0);
 
-      setStats({
-        totalUsers: totalUsers,
-        activeMembers: activeMembers,
-        totalBookings: totalBookings,
-        totalRevenue: totalRevenue,
-        pendingInquiries: inquiries?.length || 0,
-        totalTrainers: trainersCount || 0,
-        totalClasses: classesCount || 0
-      });
-    } catch (err) {
-      console.error('Stats error:', err);
-      showToast(err.message, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+    setStats({
+      totalUsers: activeUsers, // Only count active (non-deleted) users
+      activeMembers: activeMembers,
+      totalBookings: totalBookings,
+      totalRevenue: totalRevenue,
+      pendingInquiries: inquiries?.length || 0,
+      totalTrainers: trainersCount || 0,
+      totalClasses: classesCount || 0
+    });
+  } catch (err) {
+    console.error('Stats error:', err);
+    showToast(err.message, 'error');
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (loading) {
     return (
@@ -1336,8 +2169,8 @@ const Dashboard = ({ showToast }) => {
         <StatsCard
           icon={Users}
           title="Total Members"
-          value={stats.totalUsers}
-          subtitle={`${stats.activeMembers} active`}
+          value={stats.activeMembers}
+         
           color="blue"
         />
         <StatsCard
@@ -1365,13 +2198,13 @@ const Dashboard = ({ showToast }) => {
 
       <div className="grid md:grid-cols-3 gap-6">
         <div className="bg-zinc-900 rounded-xl p-6 border border-zinc-800">
-          <h3 className="text-xl font-black text-white mb-4 uppercase flex items-center">
-            <UserCheck className="w-6 h-6 mr-3 text-green-500" />
-            Active Members
-          </h3>
-          <p className="text-4xl font-black text-green-500">{stats.activeMembers}</p>
-          <p className="text-sm text-gray-400 mt-2">Out of {stats.totalUsers} total members</p>
-        </div>
+  <h3 className="text-xl font-black text-white mb-4 uppercase flex items-center">
+    <UserCheck className="w-6 h-6 mr-3 text-green-500" />
+    Active Members
+  </h3>
+  <p className="text-4xl font-black text-green-500">{stats.activeMembers}</p>
+  <p className="text-sm text-gray-400 mt-2">Out of {stats.totalUsers} total users</p>
+</div>
 
         <div className="bg-zinc-900 rounded-xl p-6 border border-zinc-800">
           <h3 className="text-xl font-black text-white mb-4 uppercase flex items-center">
@@ -1426,7 +2259,7 @@ const Dashboard = ({ showToast }) => {
   );
 };
 
-// ==================== MAIN ADMIN APP ====================
+
 export default function AdminApp() {
   const [adminUser, setAdminUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -1461,6 +2294,7 @@ export default function AdminApp() {
     { id: 'users', label: 'Users', icon: Users },
     { id: 'classes', label: 'Classes', icon: Dumbbell },
     { id: 'trainers', label: 'Trainers', icon: UserCheck },
+    { id: 'bookings', label: 'Bookings', icon: Calendar },
     { id: 'inquiries', label: 'Inquiries', icon: MessageSquare },
   ];
 
@@ -1528,6 +2362,7 @@ export default function AdminApp() {
         {activeTab === 'classes' && <ClassesManagement showToast={showToast} />}
         {activeTab === 'trainers' && <TrainersManagement showToast={showToast} />}
         {activeTab === 'inquiries' && <InquiriesManagement showToast={showToast} />}
+        {activeTab === 'bookings' && <BookingsManagement showToast={showToast} />}
       </main>
     </div>
   );
