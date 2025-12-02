@@ -8,8 +8,7 @@ import {
   Shield, Clock, MapPin, DollarSign, Activity, Send
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
-// Email sending helper functions
-// At the top, fix the email functions:
+
 
 const sendBookingEmail = async (userEmail, bookingDetails, status) => {
   try {
@@ -48,7 +47,7 @@ Stay strong! 💪
 Best regards,
 The BodyForge Team`;
 
-    console.log('Sending email to:', userEmail);
+    
 
     const { data, error } = await supabase.functions.invoke('send-email', {
       body: {
@@ -60,30 +59,30 @@ The BodyForge Team`;
     });
 
     if (error) {
-      console.error('Supabase function error:', error);
+      
       throw error;
     }
 
-    // Check if the response indicates success
+    
     if (data && data.success) {
-      console.log('Email sent successfully:', data);
+      
       return { success: true, data };
     } else {
-      console.error('Email sending failed:', data);
+      
       return { success: false, error: data?.error || 'Unknown error' };
     }
   } catch (err) {
-    console.error('Email error:', err);
+  
     return { success: false, error: err.message };
   }
 };
 
-// Fix membership email function
+
 const sendMembershipEmail = async (userEmail, membershipDetails, action) => {
   try {
     const subject = action === 'attached' 
-      ? '🎉 Membership Activated - BodyForge'
-      : '⚠️ Membership Deactivated - BodyForge';
+      ? 'Membership Activated - BodyForge'
+      : 'Membership Deactivated - BodyForge';
 
     const body = `Dear Member,
 
@@ -101,7 +100,7 @@ End Date: ${membershipDetails.endDate}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ${action === 'attached' 
-  ? '🎊 Welcome to BodyForge! Your membership is now active.\n\nYou can now book classes, schedule trainer sessions, and access all our facilities.\n\nLet\'s start your fitness journey!' 
+  ? 'Welcome to BodyForge! Your membership is now active.\n\nYou can now book classes, schedule trainer sessions, and access all our facilities.\n\nLet\'s start your fitness journey!' 
   : 'Your membership has been deactivated. If you believe this is an error, please contact us immediately.'
 }
 
@@ -110,7 +109,7 @@ Questions? Contact our support team anytime.
 Best regards,
 The BodyForge Team`;
 
-    console.log('Attempting to send membership email to:', userEmail);
+    
 
     const { data, error } = await supabase.functions.invoke('send-email', {
       body: {
@@ -122,18 +121,18 @@ The BodyForge Team`;
     });
 
     if (error) {
-      console.error('Supabase function error:', error);
+      
       throw error;
     }
     
     return { success: true, data };
   } catch (err) {
-    console.error('Email sending failed:', err);
+    
     return { success: false, error: err.message };
   }
 };
 
-// Fix inquiry response email
+
 const sendInquiryResponseEmail = async (userEmail, userName, responseMessage) => {
   try {
     const subject = '📧 Response to Your Inquiry - BodyForge';
@@ -157,7 +156,7 @@ Looking forward to seeing you at BodyForge! 💪
 Best regards,
 The BodyForge Team`;
 
-    console.log('Attempting to send inquiry response to:', userEmail);
+  
 
     const { data, error } = await supabase.functions.invoke('send-email', {
       body: {
@@ -169,13 +168,13 @@ The BodyForge Team`;
     });
 
     if (error) {
-      console.error('Supabase function error:', error);
+      
       throw error;
     }
     
     return { success: true, data };
   } catch (err) {
-    console.error('Email sending failed:', err);
+    
     return { success: false, error: err.message };
   }
 };
@@ -392,7 +391,7 @@ const UsersManagement = ({ showToast }) => {
       if (error) throw error;
       setMembershipPlans(data || []);
     } catch (err) {
-      console.error('Load plans error:', err);
+      showToast('Load plans error:', err);
     }
   };
 
@@ -436,7 +435,7 @@ const UsersManagement = ({ showToast }) => {
 
     setUsers(usersList);
   } catch (err) {
-    console.error('Load users error:', err);
+    
     showToast(err.message, 'error');
   } finally {
     setLoading(false);
@@ -507,12 +506,11 @@ const enableUser = async (userId, userEmail) => {
     showToast(err.message, 'error');
   }
 };
-// Add this function after the enableUser function
-// In UsersManagement component - fix deleteUserPermanently:
+
 const deleteUserPermanently = async (userId, userEmail) => {
   const confirmText = `DELETE`;
   const userInput = prompt(
-    `⚠️ WARNING: This will PERMANENTLY delete all data for ${userEmail}\n\n` +
+    ` WARNING: This will PERMANENTLY delete all data for ${userEmail}\n\n` +
     `This includes:\n` +
     `- Profile information\n` +
     `- All bookings and sessions\n` +
@@ -527,66 +525,66 @@ const deleteUserPermanently = async (userId, userEmail) => {
     return;
   }
 
-  console.log('Starting deletion for user:', userId);
+ 
 
   try {
-    // Delete admin_users record first if exists
+   
     const { data: adminData, error: adminError } = await supabase
       .from('admin_users')
       .delete()
       .eq('user_id', userId)
       .select();
     
-    console.log('Admin users delete result:', { adminData, adminError });
+    
 
-    // Delete class bookings
+    
     const { data: bookingsData, error: bookingsError } = await supabase
       .from('class_bookings')
       .delete()
       .eq('user_id', userId)
       .select();
     
-    console.log('Class bookings delete result:', { bookingsData, bookingsError });
+   
     if (bookingsError) throw bookingsError;
 
-    // Delete trainer sessions
+    
     const { data: sessionsData, error: sessionsError } = await supabase
       .from('trainer_sessions')
       .delete()
       .eq('user_id', userId)
       .select();
     
-    console.log('Trainer sessions delete result:', { sessionsData, sessionsError });
+   
     if (sessionsError) throw sessionsError;
 
-    // Delete payments
+   
     const { data: paymentsData, error: paymentsError } = await supabase
       .from('payments')
       .delete()
       .eq('user_id', userId)
       .select();
     
-    console.log('Payments delete result:', { paymentsData, paymentsError });
+    
     if (paymentsError) throw paymentsError;
 
-    // Delete memberships
+    
     const { data: membershipsData, error: membershipsError } = await supabase
       .from('user_memberships')
       .delete()
       .eq('user_id', userId)
       .select();
     
-    console.log('Memberships delete result:', { membershipsData, membershipsError });
+    
     if (membershipsError) throw membershipsError;
     
-    // Finally delete the profile
+
     const { data: profileData, error: profileError } = await supabase
       .from('profiles')
       .delete()
       .eq('id', userId)
       .select();
 
-    console.log('Profile delete result:', { profileData, profileError });
+    
     if (profileError) throw profileError;
 
     if (!profileData || profileData.length === 0) {
@@ -595,15 +593,15 @@ const deleteUserPermanently = async (userId, userEmail) => {
 
     showToast('User permanently deleted successfully', 'success');
     
-    // Close modal
+
     setShowUserDetails(false);
     setSelectedUser(null);
     
-    // Reload users
+ 
     await loadUsers();
     
   } catch (err) {
-    console.error('Delete user error:', err);
+    
     showToast(`Delete failed: ${err.message}`, 'error');
   }
 };  
@@ -649,10 +647,10 @@ const attachMembership = async (e) => {
 
     if (error) throw error;
 
-    // Get plan details for email
+  
     const plan = membershipPlans.find(p => p.id === selectedPlan);
     
-    // Send email
+  
     const emailResult = await sendMembershipEmail(selectedUser.email, {
       planName: plan?.name || 'Premium',
       status: 'ACTIVE',
@@ -666,7 +664,7 @@ const attachMembership = async (e) => {
       showToast('Membership attached but email failed to send', 'error');
     }
     
-    // Close modals and refresh
+ 
     setShowAttachMembership(false);
     setSelectedPlan('');
     setShowUserDetails(false);
@@ -676,7 +674,7 @@ const attachMembership = async (e) => {
     }, 100);
     
   } catch (err) {
-    console.error('Attach membership error:', err);
+    
     showToast(err.message, 'error');
   }
 };
@@ -1374,7 +1372,7 @@ const deleteBooking = async (id, type) => {
   try {
     const table = type === 'class' ? 'class_bookings' : 'trainer_sessions';
     
-    // Delete the booking/session
+    
     const { error } = await supabase
       .from(table)
       .delete()
@@ -1384,13 +1382,13 @@ const deleteBooking = async (id, type) => {
     
     showToast('Booking deleted successfully', 'success');
     
-    // Close modal and refresh
+   
     setShowDetailsModal(false);
     setSelectedItem(null);
     await loadBookings();
     
   } catch (err) {
-    console.error('Delete booking error:', err);
+    
     showToast(err.message, 'error');
   }
 };
@@ -1405,7 +1403,7 @@ const updateBookingStatus = async (id, status, type) => {
 
     if (error) throw error;
 
-    // Send email notification
+    
     const bookingDetails = {
       type,
       name: type === 'class' ? selectedItem.classes?.title : selectedItem.trainers?.name,
@@ -1421,7 +1419,7 @@ const updateBookingStatus = async (id, status, type) => {
       showToast('Status updated but email failed to send', 'error');
     }
     
-    // Close modal and refresh
+    
     setShowDetailsModal(false);
     setSelectedItem(null);
     
@@ -1430,7 +1428,7 @@ const updateBookingStatus = async (id, status, type) => {
     }, 100);
     
   } catch (err) {
-    console.error('Update booking error:', err);
+    
     showToast(err.message, 'error');
   }
 };
@@ -1497,7 +1495,7 @@ const loadBookings = async () => {
     setBookings(bookingsWithEmails);
     setSessions(sessionsWithEmails);
   } catch (err) {
-    console.error('Load bookings error:', err);
+    
     showToast(err.message, 'error');
   } finally {
     setLoading(false);
@@ -1808,22 +1806,22 @@ const deleteInquiry = async (id) => {
     
     showToast('Inquiry deleted successfully', 'success');
     
-    // Close modal and refresh
+   
     setShowInquiryDetails(false);
     setSelectedInquiry(null);
     await loadInquiries();
     
   } catch (err) {
-    console.error('Delete inquiry error:', err);
+    
     showToast(err.message, 'error');
   }
 };
 
-// Add new state for response modal
+
 const [showResponseModal, setShowResponseModal] = useState(false);
 const [responseMessage, setResponseMessage] = useState('');
 
-// Add this function to send email response
+
 const sendResponse = async () => {
   if (!responseMessage.trim()) {
     showToast('Please enter a response message', 'error');
@@ -1838,7 +1836,7 @@ const sendResponse = async () => {
     );
 
     if (emailResult.success) {
-      // Update status to responded
+      
       const { error } = await supabase
         .from('contact_inquiries')
         .update({ status: 'responded' })
@@ -1858,13 +1856,13 @@ const sendResponse = async () => {
       showToast('Failed to send response email', 'error');
     }
   } catch (err) {
-    console.error('Send response error:', err);
+   
     showToast(err.message, 'error');
   }
 };
 
 const contactUser = (email, name) => {
-  // Opens default email client
+ 
   const subject = encodeURIComponent(`Re: Your BodyForge Inquiry`);
   const body = encodeURIComponent(`Dear ${name},\n\nThank you for contacting BodyForge.\n\n`);
   window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
@@ -2086,60 +2084,60 @@ const Dashboard = ({ showToast }) => {
 
 const loadStats = async () => {
   try {
-    // Get all profiles
+    
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
       .select('id, deleted');
 
-    // Get all memberships
+   
     const { data: memberships, error: membError } = await supabase
       .from('user_memberships')
       .select('*');
 
-    // Get bookings
+   
     const { data: bookings, error: bookError } = await supabase
       .from('class_bookings')
       .select('*');
 
-    // Get sessions
+   
     const { data: sessions, error: sessError } = await supabase
       .from('trainer_sessions')
       .select('*');
 
-    // Get pending inquiries
+    
     const { data: inquiries, error: inqError } = await supabase
       .from('contact_inquiries')
       .select('*')
       .eq('status', 'new');
 
-    // Get completed payments
+   
     const { data: payments, error: payError } = await supabase
       .from('payments')
       .select('amount, status')
       .eq('status', 'completed');
 
-    // Count trainers
+   
     const { count: trainersCount } = await supabase
       .from('trainers')
       .select('*', { count: 'exact', head: true });
 
-    // Count classes
+    
     const { count: classesCount } = await supabase
       .from('classes')
       .select('*', { count: 'exact', head: true });
 
-    // Calculate accurate stats
+   
     const totalRevenue = payments?.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) || 0;
     const activeMembers = memberships?.filter(m => m.status === 'active').length || 0;
     
-    // Filter out deleted/disabled users for total count
+    
     const activeUsers = profiles?.filter(p => !p.deleted).length || 0;
     const totalUsers = profiles?.length || 0;
     
     const totalBookings = (bookings?.length || 0) + (sessions?.length || 0);
 
     setStats({
-      totalUsers: activeUsers, // Only count active (non-deleted) users
+      totalUsers: activeUsers, 
       activeMembers: activeMembers,
       totalBookings: totalBookings,
       totalRevenue: totalRevenue,
@@ -2148,7 +2146,7 @@ const loadStats = async () => {
       totalClasses: classesCount || 0
     });
   } catch (err) {
-    console.error('Stats error:', err);
+   
     showToast(err.message, 'error');
   } finally {
     setLoading(false);
@@ -2302,7 +2300,7 @@ export default function AdminApp() {
     <div className="min-h-screen bg-black text-white">
       <ToastContainer toasts={toasts} removeToast={removeToast} />
 
-      {/* Header */}
+      { /*header*/}
       <header className="bg-zinc-900 border-b border-zinc-800 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
