@@ -1762,7 +1762,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, showToast }) => {
         "success"
       );
 
-      // Close modal after 3 seconds
+    
       setTimeout(() => {
         setEmail("");
         setEmailSent(false);
@@ -1919,7 +1919,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
 
         console.log("Login response:", data);
 
-        // Check if email is verified
+      
         if (!data.user.email_confirmed_at) {
           console.log("Email not confirmed");
           await supabase.auth.signOut();
@@ -1928,7 +1928,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
           );
         }
 
-        // Check if account is deleted
+        
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("deleted, deleted_at")
@@ -1938,7 +1938,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
         console.log("Profile check:", profile, profileError);
 
         if (profileError && profileError.code !== "PGRST116") {
-          // PGRST116 means no rows returned, which is okay for new accounts
+          
           console.error("Profile error:", profileError);
           await supabase.auth.signOut();
           throw new Error(
@@ -1958,7 +1958,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
         onSuccess(data.user);
         onClose();
       } else {
-        // Signup - Check if email exists in profiles table
+       
         console.log("Checking if email exists:", formData.email);
 
         const { data: existingProfile, error: profileCheckError } =
@@ -1975,7 +1975,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
         );
 
         if (existingProfile) {
-          // Check if the account was deleted
+         
           if (existingProfile.deleted) {
             throw new Error(
               "This email was previously registered but the account has been deleted. Please contact support at support@bodyforge.com to reactivate or use a different email."
@@ -1987,7 +1987,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
           );
         }
 
-        // Email doesn't exist in profiles, proceed with signup
+        
         console.log("Email available, proceeding with signup");
 
         const { data, error } = await supabase.auth.signUp({
@@ -2005,7 +2005,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
         if (error) {
           console.error("Signup error:", error);
 
-          // Handle specific Supabase error messages
+          
           if (error.message.includes("User already registered")) {
             throw new Error(
               "This email is already registered. Please login instead."
@@ -2029,14 +2029,14 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
 
         console.log("Signup response:", data);
 
-        // Verify user was actually created
+      
         if (!data.user) {
           throw new Error(
             "Signup failed. The account could not be created. Please try again or contact support."
           );
         }
 
-        // Check if email confirmation is required
+        
         if (data.user && !data.user.email_confirmed_at) {
           showToast(
             "Account created successfully! Please check your email (including spam/junk folder) to verify your account before logging in.",
@@ -2049,7 +2049,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
           );
         }
 
-        // Clear form and close modal
+        
         setFormData({ email: "", password: "", name: "", phone: "" });
         onClose();
       }
@@ -2060,7 +2060,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
         stack: err.stack,
       });
 
-      // More user-friendly error messages
+     
       let errorMessage = err.message;
 
       if (err.message?.includes("Invalid login credentials")) {
@@ -2269,7 +2269,7 @@ const ResetPasswordPage = ({ showToast }) => {
 
       showToast("Password updated successfully! You can now login.", "success");
 
-      // Redirect to home after 2 seconds
+     
       setTimeout(() => {
         window.location.href = "/";
       }, 2000);
@@ -2321,9 +2321,9 @@ export default function App() {
   const [toasts, setToasts] = useState([]);
   const [userMembership, setUserMembership] = useState(null);
   const [isResetPassword, setIsResetPassword] = useState(false); 
-  // Add this inside the App component, before the first useEffect
+  
    useEffect(() => {
-    // Check if URL contains reset-password
+   
     if (window.location.pathname === '/reset-password' || window.location.hash.includes('type=recovery')) {
       setIsResetPassword(true);
     }
@@ -2333,7 +2333,7 @@ export default function App() {
       console.log("Supabase URL:", supabaseUrl);
       console.log("Supabase Anon Key exists:", !!supabaseAnonKey);
 
-      // Test the connection
+      
       const { data, error } = await supabase.auth.getSession();
       console.log("Supabase connection test:", { data, error });
     };
@@ -2382,11 +2382,11 @@ export default function App() {
   }, []);
   useEffect(() => {
     const initAuth = async () => {
-      // Check if this is a fresh page load (not from back/forward navigation)
+      
       const isPageRefresh = performance.navigation.type === 1;
       const isBackForward = performance.navigation.type === 2;
 
-      // If user navigated back or closed tab previously, clear session
+      
       if (isBackForward || sessionStorage.getItem("tab_closed") === "true") {
         await supabase.auth.signOut();
         sessionStorage.removeItem("tab_closed");
@@ -2404,12 +2404,12 @@ export default function App() {
 
     initAuth();
 
-    // Listen for tab/window close
+    
     const handleBeforeUnload = () => {
       sessionStorage.setItem("tab_closed", "true");
     };
 
-    // Listen for page visibility changes
+    
     const handleVisibilityChange = () => {
       if (document.hidden) {
         sessionStorage.setItem("tab_closed", "true");

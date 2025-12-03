@@ -70,9 +70,7 @@ serve(async (req) => {
   }
 });
 
-// ----------------------
-// HTML email template
-// ----------------------
+
 function generateEmailHTML(body: string, type: string, subject: string): string {
   const formattedBody = body.replace(/\n/g, "<br>");
   return `
