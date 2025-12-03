@@ -3,7 +3,27 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: true,
+    storage: {
+      getItem: (key) => {
+        if (sessionStorage.getItem('tab_closed') === 'true') {
+          return null;
+        }
+        return sessionStorage.getItem(key);
+      },
+      setItem: (key, value) => {
+        sessionStorage.setItem(key, value);
+      },
+      removeItem: (key) => {
+        sessionStorage.removeItem(key);
+      }
+    }
+  }
+});
 
 
 export const signUp = async (email, password, userData) => {
