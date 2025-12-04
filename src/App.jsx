@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Menu,
+  Calendar,
   X,
   Dumbbell,
   MapPin,
@@ -31,6 +32,28 @@ import {
 import AdminApp from "./AdminApp";
 
 import ReCAPTCHA from "react-google-recaptcha";
+// Helper function to create notifications
+const createNotification = async (userId, type, title, message, relatedId = null, relatedType = null) => {
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .insert([{
+        user_id: userId,
+        type,
+        title,
+        message,
+        related_id: relatedId,
+        related_type: relatedType,
+        status: 'unread'
+      }]);
+
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to create notification:', err);
+    return { success: false, error: err.message };
+  }
+};
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -96,6 +119,7 @@ const ToastContainer = ({ toasts, removeToast }) => {
   );
 };
 
+window.createNotification = createNotification;
 const Navigation = ({ user, onAuthClick, onLogout, userMembership }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -135,6 +159,7 @@ const Navigation = ({ user, onAuthClick, onLogout, userMembership }) => {
         "CLASSES",
         "TRAINERS",
         "MEMBERSHIPS",
+        "NOTIFICATIONS",
         "GALLERY",
         "CONTACT",
       ];
@@ -142,6 +167,45 @@ const Navigation = ({ user, onAuthClick, onLogout, userMembership }) => {
   };
 
   const visibleItems = getVisibleNavItems();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+useEffect(() => {
+  if (user) {
+    // Load unread count
+    const loadUnreadCount = async () => {
+      const { count } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('status', 'unread');
+      
+      setUnreadCount(count || 0);
+    };
+
+    loadUnreadCount();
+
+    // Subscribe to new notifications
+    const subscription = supabase
+      .channel('notifications_count')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`
+        },
+        () => {
+          loadUnreadCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }
+}, [user]);
 
   return (
     <header
@@ -164,16 +228,21 @@ const Navigation = ({ user, onAuthClick, onLogout, userMembership }) => {
 
           <nav className="hidden md:flex items-center space-x-8">
             {visibleItems.map((item) => (
-              <a
-                key={item}
-                href={`#${item.toLowerCase()}`}
-                onClick={(e) => handleLinkClick(e, `#${item.toLowerCase()}`)}
-                className="text-white hover:text-red-500 transition-colors text-sm font-bold tracking-wider relative group"
-              >
-                {item}
-                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-red-500 group-hover:w-full transition-all duration-300" />
-              </a>
-            ))}
+  <a
+    key={item}
+    href={`#${item.toLowerCase()}`}
+    onClick={(e) => handleLinkClick(e, `#${item.toLowerCase()}`)}
+    className="text-white hover:text-red-500 transition-colors text-sm font-bold tracking-wider relative group"
+  >
+    {item}
+    {item === "NOTIFICATIONS" && unreadCount > 0 && (
+      <span className="absolute -top-1 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+        {unreadCount > 9 ? '9+' : unreadCount}
+      </span>
+    )}
+    <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-red-500 group-hover:w-full transition-all duration-300" />
+  </a>
+))}
             {user ? (
               <div className="flex items-center space-x-4">
                 <span className="text-gray-400 text-sm">
@@ -369,56 +438,66 @@ const ClassesSection = ({
     return { classes: 0, trainers: 0 };
   };
 
-  const handleBookClass = async (classItem) => {
-    if (!user) {
-      onAuthRequired();
-      return;
-    }
+ const handleBookClass = async (classItem) => {
+  if (!user) {
+    onAuthRequired();
+    return;
+  }
 
-    if (!userMembership) {
-      showToast("You need an active membership to book classes!", "warning");
-      document
-        .querySelector("#memberships")
-        ?.scrollIntoView({ behavior: "smooth" });
-      return;
-    }
+  if (!userMembership) {
+    showToast("You need an active membership to book classes!", "warning");
+    document
+      .querySelector("#memberships")
+      ?.scrollIntoView({ behavior: "smooth" });
+    return;
+  }
 
-    const limits = getMembershipLimits();
+  const limits = getMembershipLimits();
 
-    if (bookingQuotas.classes >= limits.classes) {
-      showToast(
-        `You've reached your ${limits.classes} class limit for this month. Upgrade your plan for more!`,
-        "warning"
-      );
-      return;
-    }
+  if (bookingQuotas.classes >= limits.classes) {
+    showToast(
+      `You've reached your ${limits.classes} class limit for this month. Upgrade your plan for more!`,
+      "warning"
+    );
+    return;
+  }
 
-    setSelectedClass(classItem);
+  setSelectedClass(classItem);
 
-    const bookingDate = new Date().toISOString().split("T")[0];
-    const bookingTime = "10:00:00";
+  const bookingDate = new Date().toISOString().split("T")[0];
+  const bookingTime = "10:00:00";
 
-    const { error } = await supabase.from("class_bookings").insert([
-      {
-        user_id: user.id,
-        class_id: classItem.id,
-        booking_date: bookingDate,
-        booking_time: bookingTime,
-        payment_id: userMembership.payment_id,
-      },
-    ]);
+  const { data: booking, error } = await supabase.from("class_bookings").insert([
+    {
+      user_id: user.id,
+      class_id: classItem.id,
+      booking_date: bookingDate,
+      booking_time: bookingTime,
+      payment_id: userMembership.payment_id,
+    },
+  ]).select().single();
 
-    if (!error) {
-      showToast(`${classItem.title} booked successfully!`, "success");
+  if (!error) {
+    showToast(`${classItem.title} booked successfully!`, "success");
 
-      setBookingQuotas({
-        ...bookingQuotas,
-        classes: bookingQuotas.classes + 1,
-      });
-    } else {
-      showToast(`Booking failed: ${error.message}`, "error");
-    }
-  };
+    // Create notification
+    await createNotification(
+      user.id,
+      'booking',
+      'Class Booking Confirmed',
+      `Your booking for ${classItem.title} on ${new Date(bookingDate).toLocaleDateString()} at ${bookingTime} has been received. Please wait for admin confirmation.`,
+      booking.id,
+      'class_booking'
+    );
+
+    setBookingQuotas({
+      ...bookingQuotas,
+      classes: bookingQuotas.classes + 1,
+    });
+  } else {
+    showToast(`Booking failed: ${error.message}`, "error");
+  }
+};
 
   const handlePaymentSuccess = async (paymentRecord) => {
     const bookingDate = new Date().toISOString().split("T")[0];
@@ -642,70 +721,81 @@ const TrainersSection = ({
     return { classes: 0, trainers: 0 };
   };
 
-  const handleBookSession = async (trainer) => {
-    if (!user) {
-      onAuthRequired();
-      return;
-    }
+ const handleBookSession = async (trainer) => {
+  if (!user) {
+    onAuthRequired();
+    return;
+  }
 
-    if (!userMembership) {
-      showToast(
-        "You need an active membership to book trainer sessions!",
-        "warning"
-      );
-      document
-        .querySelector("#memberships")
-        ?.scrollIntoView({ behavior: "smooth" });
-      return;
-    }
+  if (!userMembership) {
+    showToast(
+      "You need an active membership to book trainer sessions!",
+      "warning"
+    );
+    document
+      .querySelector("#memberships")
+      ?.scrollIntoView({ behavior: "smooth" });
+    return;
+  }
 
-    const limits = getMembershipLimits();
+  const limits = getMembershipLimits();
 
-    if (limits.trainers === 0) {
-      showToast(
-        "Your current plan doesn't include trainer sessions. Please upgrade!",
-        "warning"
-      );
-      document
-        .querySelector("#memberships")
-        ?.scrollIntoView({ behavior: "smooth" });
-      return;
-    }
+  if (limits.trainers === 0) {
+    showToast(
+      "Your current plan doesn't include trainer sessions. Please upgrade!",
+      "warning"
+    );
+    document
+      .querySelector("#memberships")
+      ?.scrollIntoView({ behavior: "smooth" });
+    return;
+  }
 
-    if (bookingQuotas.trainers >= limits.trainers) {
-      showToast(
-        `You've reached your ${limits.trainers} trainer session limit for this month. Upgrade your plan for more!`,
-        "warning"
-      );
-      return;
-    }
+  if (bookingQuotas.trainers >= limits.trainers) {
+    showToast(
+      `You've reached your ${limits.trainers} trainer session limit for this month. Upgrade your plan for more!`,
+      "warning"
+    );
+    return;
+  }
 
-    setSelectedTrainer(trainer);
+  setSelectedTrainer(trainer);
 
-    const sessionDate = new Date().toISOString().split("T")[0];
-    const sessionTime = "14:00:00";
+  const sessionDate = new Date().toISOString().split("T")[0];
+  const sessionTime = "14:00:00";
 
-    const { error } = await supabase.from("trainer_sessions").insert([
-      {
-        user_id: user.id,
-        trainer_id: trainer.id,
-        session_date: sessionDate,
-        session_time: sessionTime,
-        notes: "Initial consultation",
-        payment_id: userMembership.payment_id,
-      },
-    ]);
+  const { data: session, error } = await supabase.from("trainer_sessions").insert([
+    {
+      user_id: user.id,
+      trainer_id: trainer.id,
+      session_date: sessionDate,
+      session_time: sessionTime,
+      notes: "Initial consultation",
+      payment_id: userMembership.payment_id,
+    },
+  ]).select().single();
 
-    if (!error) {
-      showToast(`Session booked with ${trainer.name}!`, "success");
-      setBookingQuotas({
-        ...bookingQuotas,
-        trainers: bookingQuotas.trainers + 1,
-      });
-    } else {
-      showToast(`Booking failed: ${error.message}`, "error");
-    }
-  };
+  if (!error) {
+    showToast(`Session booked with ${trainer.name}!`, "success");
+
+    // Create notification
+    await createNotification(
+      user.id,
+      'booking',
+      'Trainer Session Booked',
+      `Your training session with ${trainer.name} on ${new Date(sessionDate).toLocaleDateString()} at ${sessionTime} has been scheduled. Awaiting confirmation.`,
+      session.id,
+      'trainer_session'
+    );
+
+    setBookingQuotas({
+      ...bookingQuotas,
+      trainers: bookingQuotas.trainers + 1,
+    });
+  } else {
+    showToast(`Booking failed: ${error.message}`, "error");
+  }
+};
 
   const handlePaymentSuccess = async (paymentRecord) => {
     const sessionDate = new Date().toISOString().split("T")[0];
@@ -1080,39 +1170,50 @@ const ContactSection = ({ showToast, user }) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!user) {
-      showToast("Please login to send us a message", "warning");
-      return;
-    }
+  if (!user) {
+    showToast("Please login to send us a message", "warning");
+    return;
+  }
 
-    if (!formData.name || !formData.email || !formData.message) {
-      showToast("Please fill in all required fields", "warning");
-      return;
-    }
+  if (!formData.name || !formData.email || !formData.message) {
+    showToast("Please fill in all required fields", "warning");
+    return;
+  }
 
-    setSubmitting(true);
+  setSubmitting(true);
 
-    const { error } = await supabase.from("contact_inquiries").insert([
-      {
-        id: user.id,
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        message: formData.message,
-      },
-    ]);
+  const { data: inquiry, error } = await supabase.from("contact_inquiries").insert([
+    {
+      id: user.id,
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      message: formData.message,
+    },
+  ]).select().single();
 
-    setSubmitting(false);
+  setSubmitting(false);
 
-    if (error) {
-      showToast(`Failed to send message: ${error.message}`, "error");
-    } else {
-      showToast("Thank you! We will get back to you soon", "success");
-      setFormData({ name: "", email: "", phone: "", message: "" });
-    }
-  };
+  if (error) {
+    showToast(`Failed to send message: ${error.message}`, "error");
+  } else {
+    showToast("Thank you! We will get back to you soon", "success");
+
+    // Create notification
+    await createNotification(
+      user.id,
+      'inquiry',
+      'Inquiry Received',
+      'Thank you for contacting BodyForge! Your message has been received and our team will review it shortly. We typically respond within 24-48 hours.',
+      inquiry.id,
+      'inquiry'
+    );
+
+    setFormData({ name: "", email: "", phone: "", message: "" });
+  }
+};
   return (
     <section id="contact" className="py-20 bg-zinc-950 px-4">
       <div className="max-w-4xl mx-auto">
@@ -1213,6 +1314,325 @@ const ContactSection = ({ showToast, user }) => {
             </button>
           </form>
         </div>
+      </div>
+    </section>
+  );
+};
+const NotificationsSection = ({ user, showToast }) => {
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all'); // 'all', 'unread', 'read'
+
+  useEffect(() => {
+    if (user) {
+      loadNotifications();
+      
+      // Set up real-time subscription
+      const subscription = supabase
+        .channel('notifications')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`
+          },
+          (payload) => {
+            setNotifications(prev => [payload.new, ...prev]);
+            showToast('New notification received!', 'info');
+          }
+        )
+        .subscribe();
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
+  const loadNotifications = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setNotifications(data || []);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const markAsRead = async (notificationId) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ status: 'read' })
+        .eq('id', notificationId);
+
+      if (error) throw error;
+      
+      setNotifications(prev =>
+        prev.map(n => n.id === notificationId ? { ...n, status: 'read' } : n)
+      );
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ status: 'read' })
+        .eq('user_id', user.id)
+        .eq('status', 'unread');
+
+      if (error) throw error;
+      
+      setNotifications(prev =>
+        prev.map(n => ({ ...n, status: 'read' }))
+      );
+      showToast('All notifications marked as read', 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const deleteNotification = async (notificationId) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', notificationId);
+
+      if (error) throw error;
+      
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      showToast('Notification deleted', 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const clearAllNotifications = async () => {
+    if (!confirm('Are you sure you want to delete all notifications?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      
+      setNotifications([]);
+      showToast('All notifications cleared', 'success');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case 'booking':
+        return <Calendar className="w-5 h-5 text-blue-500" />;
+      case 'inquiry':
+        return <Mail className="w-5 h-5 text-green-500" />;
+      case 'membership':
+        return <CreditCard className="w-5 h-5 text-purple-500" />;
+      case 'status_update':
+        return <CheckCircle className="w-5 h-5 text-orange-500" />;
+      default:
+        return <Info className="w-5 h-5 text-gray-500" />;
+    }
+  };
+
+  const filteredNotifications = notifications.filter(n => {
+    if (filter === 'all') return true;
+    return n.status === filter;
+  });
+
+  const unreadCount = notifications.filter(n => n.status === 'unread').length;
+
+  if (!user) {
+    return (
+      <section id="notifications" className="py-20 bg-black px-4">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-4xl md:text-5xl font-black text-center mb-8 uppercase tracking-wider">
+            NOTIFICATIONS
+          </h2>
+          <div className="bg-zinc-900/50 border-2 border-zinc-700 rounded-xl p-8 text-center">
+            <Lock className="w-16 h-16 text-zinc-600 mx-auto mb-4" />
+            <h3 className="text-xl font-black text-white uppercase mb-2">
+              Login Required
+            </h3>
+            <p className="text-gray-400">
+              Please login to view your notifications
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (loading) {
+    return (
+      <section id="notifications" className="py-20 bg-black px-4">
+        <div className="max-w-4xl mx-auto text-center">
+          <div className="w-12 h-12 border-4 border-red-500/30 border-t-red-500 rounded-full animate-spin mx-auto" />
+          <p className="text-gray-400 mt-4">Loading notifications...</p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section id="notifications" className="py-20 bg-black px-4">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h2 className="text-4xl md:text-5xl font-black uppercase tracking-wider">
+              NOTIFICATIONS
+            </h2>
+            {unreadCount > 0 && (
+              <p className="text-gray-400 mt-2">
+                You have <span className="text-red-500 font-bold">{unreadCount}</span> unread notification{unreadCount !== 1 ? 's' : ''}
+              </p>
+            )}
+          </div>
+          
+          {notifications.length > 0 && (
+            <div className="flex space-x-2">
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllAsRead}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-bold text-xs uppercase transition-all"
+                >
+                  Mark All Read
+                </button>
+              )}
+              <button
+                onClick={clearAllNotifications}
+                className="px-4 py-2 bg-red-500/20 hover:bg-red-500 text-red-500 hover:text-white rounded-lg font-bold text-xs uppercase transition-all"
+              >
+                Clear All
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Filter Buttons */}
+        <div className="flex space-x-3 mb-6">
+          <button
+            onClick={() => setFilter('all')}
+            className={`px-4 py-2 rounded-lg font-bold text-sm uppercase transition-all ${
+              filter === 'all'
+                ? 'bg-red-500 text-white'
+                : 'bg-zinc-800 text-gray-400 hover:bg-zinc-700'
+            }`}
+          >
+            All ({notifications.length})
+          </button>
+          <button
+            onClick={() => setFilter('unread')}
+            className={`px-4 py-2 rounded-lg font-bold text-sm uppercase transition-all ${
+              filter === 'unread'
+                ? 'bg-red-500 text-white'
+                : 'bg-zinc-800 text-gray-400 hover:bg-zinc-700'
+            }`}
+          >
+            Unread ({unreadCount})
+          </button>
+          <button
+            onClick={() => setFilter('read')}
+            className={`px-4 py-2 rounded-lg font-bold text-sm uppercase transition-all ${
+              filter === 'read'
+                ? 'bg-red-500 text-white'
+                : 'bg-zinc-800 text-gray-400 hover:bg-zinc-700'
+            }`}
+          >
+            Read ({notifications.length - unreadCount})
+          </button>
+        </div>
+
+        {/* Notifications List */}
+        {filteredNotifications.length === 0 ? (
+          <div className="bg-zinc-900/50 border-2 border-zinc-700 rounded-xl p-12 text-center">
+            <Info className="w-16 h-16 text-zinc-600 mx-auto mb-4" />
+            <h3 className="text-xl font-black text-white uppercase mb-2">
+              No Notifications
+            </h3>
+            <p className="text-gray-400">
+              {filter === 'all' 
+                ? "You don't have any notifications yet"
+                : `No ${filter} notifications`}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredNotifications.map((notification) => (
+              <div
+                key={notification.id}
+                className={`bg-zinc-900 rounded-xl p-5 border-2 transition-all ${
+                  notification.status === 'unread'
+                    ? 'border-red-500/50 bg-red-500/5'
+                    : 'border-zinc-800 hover:border-zinc-700'
+                }`}
+              >
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0 mt-1">
+                    {getNotificationIcon(notification.type)}
+                  </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between mb-2">
+                      <h3 className="text-lg font-black text-white uppercase">
+                        {notification.title}
+                      </h3>
+                      {notification.status === 'unread' && (
+                        <span className="flex-shrink-0 ml-2 w-2 h-2 bg-red-500 rounded-full"></span>
+                      )}
+                    </div>
+                    
+                    <p className="text-gray-300 text-sm leading-relaxed mb-3">
+                      {notification.message}
+                    </p>
+                    
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-gray-500">
+                        {new Date(notification.created_at).toLocaleString()}
+                      </p>
+                      
+                      <div className="flex space-x-2">
+                        {notification.status === 'unread' && (
+                          <button
+                            onClick={() => markAsRead(notification.id)}
+                            className="text-xs font-bold text-blue-500 hover:text-blue-400 uppercase"
+                          >
+                            Mark Read
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deleteNotification(notification.id)}
+                          className="text-xs font-bold text-red-500 hover:text-red-400 uppercase"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -2202,7 +2622,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
             )}
             <div className="mt-4 flex justify-center">
               <ReCAPTCHA
-                sitekey="6Leu1xksAAAAAAAcZG-4IYM3eyy5v4O3td8GMiEV"
+                sitekey="6Lfw-CAsAAAAANjrBJJrKjgMN2ZsuM84LqJb_orN"
                 ref={recaptchaRef}
               />
             </div>
@@ -2536,6 +2956,7 @@ export default function App() {
 
       <GallerySection user={user} userMembership={userMembership} />
       <ContactSection showToast={showToast} user={user} />
+      <NotificationsSection user={user} showToast={showToast} />
       <Footer />
     </div>
   );

@@ -1,3 +1,4 @@
+
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useCallback } from 'react';
@@ -9,7 +10,28 @@ import {
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
+// Add this helper function at the top of AdminApp.jsx after imports
+const createNotification = async (userId, type, title, message, relatedId = null, relatedType = null) => {
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .insert([{
+        user_id: userId,
+        type,
+        title,
+        message,
+        related_id: relatedId,
+        related_type: relatedType,
+        status: 'unread'
+      }]);
 
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to create notification:', err);
+    return { success: false, error: err.message };
+  }
+};
 const sendBookingEmail = async (userEmail, bookingDetails, status) => {
   try {
     const emailSubject = status === 'completed' 
@@ -1403,7 +1425,7 @@ const updateBookingStatus = async (id, status, type) => {
 
     if (error) throw error;
 
-    
+    // Send email (existing code)
     const bookingDetails = {
       type,
       name: type === 'class' ? selectedItem.classes?.title : selectedItem.trainers?.name,
@@ -1413,12 +1435,35 @@ const updateBookingStatus = async (id, status, type) => {
 
     const emailResult = await sendBookingEmail(selectedItem.user_email, bookingDetails, status);
     
+    // Create notification for user
+    let notificationTitle = '';
+    let notificationMessage = '';
+
+    if (status === 'completed') {
+      notificationTitle = `${type === 'class' ? 'Class' : 'Session'} Completed`;
+      notificationMessage = `Your ${type === 'class' ? 'class' : 'training session'} "${bookingDetails.name}" on ${bookingDetails.date} has been marked as completed. Thank you for attending!`;
+    } else if (status === 'cancelled') {
+      notificationTitle = `${type === 'class' ? 'Class' : 'Session'} Cancelled`;
+      notificationMessage = `Your ${type === 'class' ? 'class' : 'training session'} "${bookingDetails.name}" on ${bookingDetails.date} has been cancelled. Please contact us if you have any questions.`;
+    } else if (status === 'confirmed' || status === 'scheduled') {
+      notificationTitle = `${type === 'class' ? 'Class' : 'Session'} Confirmed`;
+      notificationMessage = `Great news! Your ${type === 'class' ? 'class' : 'training session'} "${bookingDetails.name}" on ${bookingDetails.date} at ${bookingDetails.time} has been confirmed. See you there!`;
+    }
+
+    await createNotification(
+      selectedItem.user_id,
+      'status_update',
+      notificationTitle,
+      notificationMessage,
+      id,
+      type === 'class' ? 'class_booking' : 'trainer_session'
+    );
+    
     if (emailResult.success) {
-      showToast('Status updated and email sent successfully! 📧', 'success');
+      showToast('Status updated, email and notification sent! 📧', 'success');
     } else {
       showToast('Status updated but email failed to send', 'error');
     }
-    
     
     setShowDetailsModal(false);
     setSelectedItem(null);
@@ -1428,7 +1473,6 @@ const updateBookingStatus = async (id, status, type) => {
     }, 100);
     
   } catch (err) {
-    
     showToast(err.message, 'error');
   }
 };
@@ -1836,7 +1880,6 @@ const sendResponse = async () => {
     );
 
     if (emailResult.success) {
-      
       const { error } = await supabase
         .from('contact_inquiries')
         .update({ status: 'responded' })
@@ -1844,7 +1887,17 @@ const sendResponse = async () => {
 
       if (error) throw error;
 
-      showToast('Response sent successfully! 📧', 'success');
+      // Create notification for user
+      await createNotification(
+        selectedInquiry.id, // Using inquiry ID as user ID
+        'status_update',
+        'Inquiry Response Received',
+        `We've responded to your inquiry! Check your email for our detailed response. ${responseMessage.substring(0, 100)}${responseMessage.length > 100 ? '...' : ''}`,
+        selectedInquiry.id,
+        'inquiry'
+      );
+
+      showToast('Response and notification sent successfully! 📧', 'success');
       setShowResponseModal(false);
       setResponseMessage('');
       setShowInquiryDetails(false);
@@ -1856,7 +1909,6 @@ const sendResponse = async () => {
       showToast('Failed to send response email', 'error');
     }
   } catch (err) {
-   
     showToast(err.message, 'error');
   }
 };
