@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
-// Add this helper function at the top of AdminApp.jsx after imports
+
 const createNotification = async (userId, type, title, message, relatedId = null, relatedType = null) => {
   try {
     const { error } = await supabase
@@ -492,7 +492,7 @@ const disableUser = async (userId, userEmail) => {
   if (!confirm(`Are you sure you want to disable ${userEmail}? They will be immediately logged out and unable to access their account.`)) return;
 
   try {
-    // First disable the profile
+    
     const { error } = await supabase
       .from('profiles')
       .update({ 
@@ -503,8 +503,7 @@ const disableUser = async (userId, userEmail) => {
 
     if (error) throw error;
 
-    // Try to invalidate all sessions for this user (admin action)
-    // Note: This requires RPC function in Supabase
+    
     try {
       const { error: rpcError } = await supabase.rpc('admin_sign_out_user', { user_id: userId });
       if (rpcError) {
@@ -647,16 +646,16 @@ const deleteUserPermanently = async (userId, userEmail) => {
   if (!confirm('Are you sure you want to deactivate this membership?')) return;
   
   try {
-    // Deactivate the SPECIFIC membership by ID
+    
     const { error } = await supabase
       .from('user_memberships')
       .update({ status: 'cancelled' })
       .eq('id', membershipId)
-      .eq('user_id', userId); // Extra safety check
+      .eq('user_id', userId); 
 
     if (error) throw error;
     
-    // Send email notification
+  
     const plan = selectedUser.membership_plans || selectedUser.plan;
     if (selectedUser.email && plan) {
       await sendMembershipEmail(selectedUser.email, {
@@ -669,7 +668,7 @@ const deleteUserPermanently = async (userId, userEmail) => {
     
     showToast('Membership deactivated successfully', 'success');
     setShowUserDetails(false);
-    await loadUsers(); // Reload to get fresh data
+    await loadUsers(); 
   } catch (err) {
     showToast(err.message, 'error');
   }
@@ -701,10 +700,10 @@ const attachMembership = async (e) => {
 
     if (error) throw error;
 
-    // Get plan details
+   
     const plan = membershipPlans.find(p => p.id === selectedPlan);
     
-    // Create notification for user
+   
     await createNotification(
       selectedUser.id,
       'membership',
@@ -714,7 +713,7 @@ const attachMembership = async (e) => {
       'membership'
     );
 
-    // Send email
+    
     const emailResult = await sendMembershipEmail(selectedUser.email, {
       planName: plan?.name || 'Premium',
       status: 'ACTIVE',
@@ -1428,11 +1427,11 @@ const BookingsManagement = ({ showToast }) => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
- // Add this useEffect inside BookingsManagement component
+
 useEffect(() => {
   loadBookings();
   
-  // Subscribe to real-time changes
+ 
   const bookingsChannel = supabase
     .channel('admin_bookings')
     .on(
@@ -1444,7 +1443,7 @@ useEffect(() => {
       },
       () => {
         console.log('Class booking changed');
-        loadBookings(); // Reload bookings
+        loadBookings(); 
       }
     )
     .on(
@@ -1456,7 +1455,7 @@ useEffect(() => {
       },
       () => {
         console.log('Trainer session changed');
-        loadBookings(); // Reload bookings
+        loadBookings(); 
       }
     )
     .subscribe();
@@ -1502,7 +1501,7 @@ const updateBookingStatus = async (id, status, type) => {
 
     if (error) throw error;
 
-    // Prepare booking details
+    
     const bookingDetails = {
       type,
       name: type === 'class' ? selectedItem.classes?.title : selectedItem.trainers?.name,
@@ -1510,7 +1509,7 @@ const updateBookingStatus = async (id, status, type) => {
       time: type === 'class' ? selectedItem.booking_time : selectedItem.session_time
     };
 
-    // Create notification for user based on status
+   
     let notificationTitle = '';
     let notificationMessage = '';
     let notificationType = 'status_update';
@@ -1526,7 +1525,7 @@ const updateBookingStatus = async (id, status, type) => {
       notificationMessage = `Great news! Your ${type === 'class' ? 'class' : 'training session'} "${bookingDetails.name}" on ${bookingDetails.date} at ${bookingDetails.time} has been confirmed. See you there! 💪`;
     }
 
-    // Create the notification
+ 
     await createNotification(
       selectedItem.user_id,
       notificationType,
@@ -1536,7 +1535,7 @@ const updateBookingStatus = async (id, status, type) => {
       type === 'class' ? 'class_booking' : 'trainer_session'
     );
 
-    // Send email
+   
     const emailResult = await sendBookingEmail(selectedItem.user_email, bookingDetails, status);
     
     if (emailResult.success) {
@@ -1954,7 +1953,7 @@ const sendResponse = async () => {
   }
 
   try {
-    // Send email first
+   
     const emailResult = await sendInquiryResponseEmail(
       selectedInquiry.email,
       selectedInquiry.name,
@@ -1962,7 +1961,7 @@ const sendResponse = async () => {
     );
 
     if (emailResult.success) {
-      // Update inquiry status
+     
       const { error } = await supabase
         .from('contact_inquiries')
         .update({ status: 'responded' })
@@ -1970,7 +1969,7 @@ const sendResponse = async () => {
 
       if (error) throw error;
 
-      // Create notification for user
+     
       const notificationMessage = `We've responded to your inquiry! Check your email for our detailed response.\n\n${responseMessage.substring(0, 150)}${responseMessage.length > 150 ? '...' : ''}`;
       
       await createNotification(
@@ -2400,13 +2399,13 @@ export default function AdminApp() {
   const [adminUser, setAdminUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [toasts, setToasts] = useState([]);
-// DELETE THIS ENTIRE BLOCK FROM AdminLogin:
+
 useEffect(() => {
   const checkAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     
     if (session?.user) {
-      // Verify admin status
+     
       const { data: adminData } = await supabase
         .from('admin_users')
         .select('id')

@@ -32,7 +32,7 @@ import {
 import AdminApp from "./AdminApp";
 
 import ReCAPTCHA from "react-google-recaptcha";
-// Helper function to create notifications
+
 const createNotification = async (userId, type, title, message, relatedId = null, relatedType = null) => {
   try {
     const { error } = await supabase
@@ -171,7 +171,7 @@ const Navigation = ({ user, onAuthClick, onLogout, userMembership }) => {
 
 useEffect(() => {
   if (user) {
-    // Load unread count
+   
     const loadUnreadCount = async () => {
       const { count } = await supabase
         .from('notifications')
@@ -184,7 +184,7 @@ useEffect(() => {
 
     loadUnreadCount();
 
-    // Subscribe to new notifications with unique channel name
+    
     const subscription = supabase
       .channel(`nav_notifications_${user.id}`)
       .on(
@@ -482,7 +482,7 @@ const ClassesSection = ({
   if (!error) {
     showToast(`${classItem.title} booked successfully!`, "success");
 
-    // Create notification
+    
     await createNotification(
       user.id,
       'booking',
@@ -780,7 +780,7 @@ const TrainersSection = ({
   if (!error) {
     showToast(`Session booked with ${trainer.name}!`, "success");
 
-    // Create notification
+    
     await createNotification(
       user.id,
       'booking',
@@ -1203,7 +1203,7 @@ const ContactSection = ({ showToast, user }) => {
   } else {
     showToast("Thank you! We will get back to you soon", "success");
 
-    // Create notification
+   
     await createNotification(
       user.id,
       'inquiry',
@@ -1323,18 +1323,18 @@ const ContactSection = ({ showToast, user }) => {
 const NotificationsSection = ({ user, showToast }) => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // 'all', 'unread', 'read'
+  const [filter, setFilter] = useState('all'); 
 useEffect(() => {
   if (user) {
     loadNotifications();
     
-    // Set up real-time subscription for ALL events (INSERT, UPDATE, DELETE)
+   
     const subscription = supabase
       .channel(`notifications_${user.id}`)
       .on(
         'postgres_changes',
         {
-          event: '*', // Listen to all events
+          event: '*', 
           schema: 'public',
           table: 'notifications',
           filter: `user_id=eq.${user.id}`
@@ -2819,7 +2819,7 @@ export default function App() {
 useEffect(() => {
   const initAuth = async () => {
     try {
-      // Get current session
+     
       const { data: { session }, error } = await supabase.auth.getSession();
       
       if (error) {
@@ -2840,7 +2840,7 @@ useEffect(() => {
 
   initAuth();
 
-  // Listen for auth changes
+ 
   const { data: authListener } = supabase.auth.onAuthStateChange(
     async (event, session) => {
       console.log('Auth event:', event);
@@ -2858,11 +2858,11 @@ useEffect(() => {
     authListener.subscription.unsubscribe();
   };
 }, []);
-// Add this useEffect after the authentication useEffect in App.jsx
+
 useEffect(() => {
   if (!user) return;
 
-  // Subscribe to profile changes for the current user
+
   const profileSubscription = supabase
     .channel(`profile_${user.id}`)
     .on(
@@ -2876,25 +2876,24 @@ useEffect(() => {
       async (payload) => {
         console.log('Profile change detected:', payload);
         
-        // If user is deleted or disabled
+        
         if (payload.eventType === 'UPDATE' && payload.new.deleted === true) {
           await supabase.auth.signOut();
           setUser(null);
           setUserMembership(null);
           showToast('Your account has been deactivated. Please contact support.', 'error');
-          
-          // Redirect to home
+        
           window.location.href = '/';
         }
         
-        // If user is permanently deleted
+        
         if (payload.eventType === 'DELETE') {
           await supabase.auth.signOut();
           setUser(null);
           setUserMembership(null);
           showToast('Your account has been removed. Please contact support.', 'error');
           
-          // Redirect to home
+         
           window.location.href = '/';
         }
       }
