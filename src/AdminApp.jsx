@@ -1,4 +1,5 @@
 
+
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useCallback } from 'react';
@@ -294,6 +295,9 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
 const AdminLogin = ({ onLoginSuccess, showToast }) => {
   const [credentials, setCredentials] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
+  const [adminUser, setAdminUser] = useState(null);
+
+ 
 
  const handleLogin = async (e) => {
   e.preventDefault();
@@ -485,9 +489,10 @@ const UsersManagement = ({ showToast }) => {
 
   
 const disableUser = async (userId, userEmail) => {
-  if (!confirm(`Are you sure you want to disable ${userEmail}? They will not be able to access their account.`)) return;
+  if (!confirm(`Are you sure you want to disable ${userEmail}? They will be immediately logged out and unable to access their account.`)) return;
 
   try {
+    // First disable the profile
     const { error } = await supabase
       .from('profiles')
       .update({ 
@@ -498,8 +503,19 @@ const disableUser = async (userId, userEmail) => {
 
     if (error) throw error;
 
+    // Try to invalidate all sessions for this user (admin action)
+    // Note: This requires RPC function in Supabase
+    try {
+      const { error: rpcError } = await supabase.rpc('admin_sign_out_user', { user_id: userId });
+      if (rpcError) {
+        console.log('Session invalidation not available:', rpcError);
+      }
+    } catch (rpcErr) {
+      console.log('RPC function not found - user will be disabled but may need to refresh to be logged out');
+    }
+
     showToast('User disabled successfully', 'success');
-    loadUsers();
+    await loadUsers();
     setShowUserDetails(false);
   } catch (err) {
     showToast(err.message, 'error');
@@ -628,20 +644,36 @@ const deleteUserPermanently = async (userId, userEmail) => {
   }
 };  
   const deactivateMembership = async (userId, membershipId) => {
-    try {
-      const { error } = await supabase
-        .from('user_memberships')
-        .update({ status: 'cancelled' })
-        .eq('id', membershipId);
+  if (!confirm('Are you sure you want to deactivate this membership?')) return;
+  
+  try {
+    // Deactivate the SPECIFIC membership by ID
+    const { error } = await supabase
+      .from('user_memberships')
+      .update({ status: 'cancelled' })
+      .eq('id', membershipId)
+      .eq('user_id', userId); // Extra safety check
 
-      if (error) throw error;
-      showToast('Membership deactivated successfully', 'success');
-      loadUsers();
-      setShowUserDetails(false);
-    } catch (err) {
-      showToast(err.message, 'error');
+    if (error) throw error;
+    
+    // Send email notification
+    const plan = selectedUser.membership_plans || selectedUser.plan;
+    if (selectedUser.email && plan) {
+      await sendMembershipEmail(selectedUser.email, {
+        planName: plan.name,
+        status: 'CANCELLED',
+        startDate: new Date(selectedUser.membership?.start_date || Date.now()).toLocaleDateString(),
+        endDate: new Date(selectedUser.membership?.end_date || Date.now()).toLocaleDateString()
+      }, 'deactivated');
     }
-  };
+    
+    showToast('Membership deactivated successfully', 'success');
+    setShowUserDetails(false);
+    await loadUsers(); // Reload to get fresh data
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+};
 
 const attachMembership = async (e) => {
   e.preventDefault();
@@ -669,10 +701,20 @@ const attachMembership = async (e) => {
 
     if (error) throw error;
 
-  
+    // Get plan details
     const plan = membershipPlans.find(p => p.id === selectedPlan);
     
-  
+    // Create notification for user
+    await createNotification(
+      selectedUser.id,
+      'membership',
+      'Membership Activated! 🎉',
+      `Welcome to BodyForge! Your ${plan?.name || 'Premium'} membership is now active. You can now book classes, schedule trainer sessions, and access all our facilities. Start Date: ${new Date(startDate).toLocaleDateString()} | End Date: ${new Date(endDate).toLocaleDateString()}`,
+      selectedPlan,
+      'membership'
+    );
+
+    // Send email
     const emailResult = await sendMembershipEmail(selectedUser.email, {
       planName: plan?.name || 'Premium',
       status: 'ACTIVE',
@@ -681,12 +723,11 @@ const attachMembership = async (e) => {
     }, 'attached');
 
     if (emailResult.success) {
-      showToast('Membership attached and email sent successfully! 📧', 'success');
+      showToast('Membership attached, notification created, and email sent! 📧', 'success');
     } else {
-      showToast('Membership attached but email failed to send', 'error');
+      showToast('Membership attached and notification created, but email failed', 'error');
     }
     
- 
     setShowAttachMembership(false);
     setSelectedPlan('');
     setShowUserDetails(false);
@@ -696,7 +737,7 @@ const attachMembership = async (e) => {
     }, 100);
     
   } catch (err) {
-    
+    console.error('Attach membership error:', err);
     showToast(err.message, 'error');
   }
 };
@@ -1387,7 +1428,43 @@ const BookingsManagement = ({ showToast }) => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
- 
+ // Add this useEffect inside BookingsManagement component
+useEffect(() => {
+  loadBookings();
+  
+  // Subscribe to real-time changes
+  const bookingsChannel = supabase
+    .channel('admin_bookings')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'class_bookings'
+      },
+      () => {
+        console.log('Class booking changed');
+        loadBookings(); // Reload bookings
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'trainer_sessions'
+      },
+      () => {
+        console.log('Trainer session changed');
+        loadBookings(); // Reload bookings
+      }
+    )
+    .subscribe();
+
+  return () => {
+    bookingsChannel.unsubscribe();
+  };
+}, []);
 const deleteBooking = async (id, type) => {
   if (!confirm('Are you sure you want to permanently delete this booking?')) return;
 
@@ -1425,7 +1502,7 @@ const updateBookingStatus = async (id, status, type) => {
 
     if (error) throw error;
 
-    // Send email (existing code)
+    // Prepare booking details
     const bookingDetails = {
       type,
       name: type === 'class' ? selectedItem.classes?.title : selectedItem.trainers?.name,
@@ -1433,36 +1510,39 @@ const updateBookingStatus = async (id, status, type) => {
       time: type === 'class' ? selectedItem.booking_time : selectedItem.session_time
     };
 
-    const emailResult = await sendBookingEmail(selectedItem.user_email, bookingDetails, status);
-    
-    // Create notification for user
+    // Create notification for user based on status
     let notificationTitle = '';
     let notificationMessage = '';
+    let notificationType = 'status_update';
 
     if (status === 'completed') {
       notificationTitle = `${type === 'class' ? 'Class' : 'Session'} Completed`;
-      notificationMessage = `Your ${type === 'class' ? 'class' : 'training session'} "${bookingDetails.name}" on ${bookingDetails.date} has been marked as completed. Thank you for attending!`;
+      notificationMessage = `Your ${type === 'class' ? 'class' : 'training session'} "${bookingDetails.name}" on ${bookingDetails.date} has been marked as completed. Thank you for attending! 🎉`;
     } else if (status === 'cancelled') {
       notificationTitle = `${type === 'class' ? 'Class' : 'Session'} Cancelled`;
       notificationMessage = `Your ${type === 'class' ? 'class' : 'training session'} "${bookingDetails.name}" on ${bookingDetails.date} has been cancelled. Please contact us if you have any questions.`;
     } else if (status === 'confirmed' || status === 'scheduled') {
       notificationTitle = `${type === 'class' ? 'Class' : 'Session'} Confirmed`;
-      notificationMessage = `Great news! Your ${type === 'class' ? 'class' : 'training session'} "${bookingDetails.name}" on ${bookingDetails.date} at ${bookingDetails.time} has been confirmed. See you there!`;
+      notificationMessage = `Great news! Your ${type === 'class' ? 'class' : 'training session'} "${bookingDetails.name}" on ${bookingDetails.date} at ${bookingDetails.time} has been confirmed. See you there! 💪`;
     }
 
+    // Create the notification
     await createNotification(
       selectedItem.user_id,
-      'status_update',
+      notificationType,
       notificationTitle,
       notificationMessage,
       id,
       type === 'class' ? 'class_booking' : 'trainer_session'
     );
+
+    // Send email
+    const emailResult = await sendBookingEmail(selectedItem.user_email, bookingDetails, status);
     
     if (emailResult.success) {
-      showToast('Status updated, email and notification sent! 📧', 'success');
+      showToast('Status updated, notification created, and email sent! 📧', 'success');
     } else {
-      showToast('Status updated but email failed to send', 'error');
+      showToast('Status updated and notification created, but email failed to send', 'error');
     }
     
     setShowDetailsModal(false);
@@ -1473,6 +1553,7 @@ const updateBookingStatus = async (id, status, type) => {
     }, 100);
     
   } catch (err) {
+    console.error('Update booking status error:', err);
     showToast(err.message, 'error');
   }
 };
@@ -1873,6 +1954,7 @@ const sendResponse = async () => {
   }
 
   try {
+    // Send email first
     const emailResult = await sendInquiryResponseEmail(
       selectedInquiry.email,
       selectedInquiry.name,
@@ -1880,6 +1962,7 @@ const sendResponse = async () => {
     );
 
     if (emailResult.success) {
+      // Update inquiry status
       const { error } = await supabase
         .from('contact_inquiries')
         .update({ status: 'responded' })
@@ -1888,16 +1971,18 @@ const sendResponse = async () => {
       if (error) throw error;
 
       // Create notification for user
+      const notificationMessage = `We've responded to your inquiry! Check your email for our detailed response.\n\n${responseMessage.substring(0, 150)}${responseMessage.length > 150 ? '...' : ''}`;
+      
       await createNotification(
-        selectedInquiry.id, // Using inquiry ID as user ID
-        'status_update',
-        'Inquiry Response Received',
-        `We've responded to your inquiry! Check your email for our detailed response. ${responseMessage.substring(0, 100)}${responseMessage.length > 100 ? '...' : ''}`,
+        selectedInquiry.id,
+        'inquiry',
+        'Response to Your Inquiry',
+        notificationMessage,
         selectedInquiry.id,
         'inquiry'
       );
 
-      showToast('Response and notification sent successfully! 📧', 'success');
+      showToast('Response sent, notification created, and email delivered! 📧', 'success');
       setShowResponseModal(false);
       setResponseMessage('');
       setShowInquiryDetails(false);
@@ -1909,6 +1994,7 @@ const sendResponse = async () => {
       showToast('Failed to send response email', 'error');
     }
   } catch (err) {
+    console.error('Send response error:', err);
     showToast(err.message, 'error');
   }
 };
@@ -2314,7 +2400,39 @@ export default function AdminApp() {
   const [adminUser, setAdminUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [toasts, setToasts] = useState([]);
+// DELETE THIS ENTIRE BLOCK FROM AdminLogin:
+useEffect(() => {
+  const checkAuth = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (session?.user) {
+      // Verify admin status
+      const { data: adminData } = await supabase
+        .from('admin_users')
+        .select('id')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      
+      if (adminData) {
+        setAdminUser(session.user);
+      } else {
+        await supabase.auth.signOut();
+      }
+    }
+  };
 
+  checkAuth();
+
+  const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT') {
+      setAdminUser(null);
+    }
+  });
+
+  return () => {
+    authListener.subscription.unsubscribe();
+  };
+}, []);
   const showToast = useCallback((message, type = 'success') => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message, type }]);

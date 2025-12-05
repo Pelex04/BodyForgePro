@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars */
+
 /* eslint-disable react-hooks/rules-of-hooks */
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -184,9 +184,9 @@ useEffect(() => {
 
     loadUnreadCount();
 
-    // Subscribe to new notifications
+    // Subscribe to new notifications with unique channel name
     const subscription = supabase
-      .channel('notifications_count')
+      .channel(`nav_notifications_${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -199,7 +199,9 @@ useEffect(() => {
           loadUnreadCount();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Navigation notification subscription:', status);
+      });
 
     return () => {
       subscription.unsubscribe();
@@ -1322,35 +1324,48 @@ const NotificationsSection = ({ user, showToast }) => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // 'all', 'unread', 'read'
-
-  useEffect(() => {
-    if (user) {
-      loadNotifications();
-      
-      // Set up real-time subscription
-      const subscription = supabase
-        .channel('notifications')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'notifications',
-            filter: `user_id=eq.${user.id}`
-          },
-          (payload) => {
+useEffect(() => {
+  if (user) {
+    loadNotifications();
+    
+    // Set up real-time subscription for ALL events (INSERT, UPDATE, DELETE)
+    const subscription = supabase
+      .channel(`notifications_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Notification change detected:', payload);
+          
+          if (payload.eventType === 'INSERT') {
             setNotifications(prev => [payload.new, ...prev]);
             showToast('New notification received!', 'info');
+          } else if (payload.eventType === 'UPDATE') {
+            setNotifications(prev => 
+              prev.map(n => n.id === payload.new.id ? payload.new : n)
+            );
+          } else if (payload.eventType === 'DELETE') {
+            setNotifications(prev => 
+              prev.filter(n => n.id !== payload.old.id)
+            );
           }
-        )
-        .subscribe();
+        }
+      )
+      .subscribe((status) => {
+        console.log('Notification subscription status:', status);
+      });
 
-      return () => {
-        subscription.unsubscribe();
-      };
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+    return () => {
+      subscription.unsubscribe();
+    };
+  }
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, [user]);
 
   const loadNotifications = async () => {
     try {
@@ -2800,60 +2815,96 @@ export default function App() {
   const removeToast = useCallback((id) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }, []);
-  useEffect(() => {
-    const initAuth = async () => {
+  
+useEffect(() => {
+  const initAuth = async () => {
+    try {
+      // Get current session
+      const { data: { session }, error } = await supabase.auth.getSession();
       
-      const isPageRefresh = performance.navigation.type === 1;
-      const isBackForward = performance.navigation.type === 2;
-
-      
-      if (isBackForward || sessionStorage.getItem("tab_closed") === "true") {
-        await supabase.auth.signOut();
-        sessionStorage.removeItem("tab_closed");
+      if (error) {
+        console.error('Session error:', error);
         setUser(null);
-        setLoading(false);
-        return;
+      } else if (session?.user) {
+        setUser(session.user);
+      } else {
+        setUser(null);
       }
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
+    } catch (err) {
+      console.error('Auth initialization error:', err);
+      setUser(null);
+    } finally {
       setLoading(false);
-    };
+    }
+  };
 
-    initAuth();
+  initAuth();
 
-    
-    const handleBeforeUnload = () => {
-      sessionStorage.setItem("tab_closed", "true");
-    };
-
-    
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        sessionStorage.setItem("tab_closed", "true");
-      }
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === "SIGNED_OUT") {
-          sessionStorage.setItem("tab_closed", "true");
-        }
+  // Listen for auth changes
+  const { data: authListener } = supabase.auth.onAuthStateChange(
+    async (event, session) => {
+      console.log('Auth event:', event);
+      
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         setUser(session?.user ?? null);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setUserMembership(null);
       }
-    );
+    }
+  );
 
-    return () => {
-      authListener.subscription.unsubscribe();
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, []);
+  return () => {
+    authListener.subscription.unsubscribe();
+  };
+}, []);
+// Add this useEffect after the authentication useEffect in App.jsx
+useEffect(() => {
+  if (!user) return;
+
+  // Subscribe to profile changes for the current user
+  const profileSubscription = supabase
+    .channel(`profile_${user.id}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'profiles',
+        filter: `id=eq.${user.id}`
+      },
+      async (payload) => {
+        console.log('Profile change detected:', payload);
+        
+        // If user is deleted or disabled
+        if (payload.eventType === 'UPDATE' && payload.new.deleted === true) {
+          await supabase.auth.signOut();
+          setUser(null);
+          setUserMembership(null);
+          showToast('Your account has been deactivated. Please contact support.', 'error');
+          
+          // Redirect to home
+          window.location.href = '/';
+        }
+        
+        // If user is permanently deleted
+        if (payload.eventType === 'DELETE') {
+          await supabase.auth.signOut();
+          setUser(null);
+          setUserMembership(null);
+          showToast('Your account has been removed. Please contact support.', 'error');
+          
+          // Redirect to home
+          window.location.href = '/';
+        }
+      }
+    )
+    .subscribe();
+
+  return () => {
+    profileSubscription.unsubscribe();
+  };
+}, [user, showToast]);
   const handleAuthSuccess = (userData) => {
     setUser(userData);
     setShowAuthModal(false);
