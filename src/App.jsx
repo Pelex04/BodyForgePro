@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 
 /* eslint-disable react-hooks/rules-of-hooks */
 
@@ -50,7 +51,7 @@ const createNotification = async (userId, type, title, message, relatedId = null
     if (error) throw error;
     return { success: true };
   } catch (err) {
-    console.error('Failed to create notification:', err);
+    
     return { success: false, error: err.message };
   }
 };
@@ -200,7 +201,7 @@ useEffect(() => {
         }
       )
       .subscribe((status) => {
-        console.log('Navigation notification subscription:', status);
+       
       });
 
     return () => {
@@ -1340,7 +1341,7 @@ useEffect(() => {
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          console.log('Notification change detected:', payload);
+          
           
           if (payload.eventType === 'INSERT') {
             setNotifications(prev => [payload.new, ...prev]);
@@ -1357,7 +1358,7 @@ useEffect(() => {
         }
       )
       .subscribe((status) => {
-        console.log('Notification subscription status:', status);
+       
       });
 
     return () => {
@@ -2187,7 +2188,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, showToast }) => {
       });
 
       if (error) {
-        console.error("Password reset error:", error);
+       
         throw error;
       }
 
@@ -2204,7 +2205,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, showToast }) => {
         onClose();
       }, 3000);
     } catch (err) {
-      console.error("Reset password error:", err);
+      
       showToast(
         err.message || "Failed to send reset email. Please try again.",
         "error"
@@ -2340,7 +2341,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
     setLoading(true);
     try {
       if (isLogin) {
-        console.log("Attempting login with:", formData.email);
+       
 
         const { data, error } = await supabase.auth.signInWithPassword({
           email: formData.email,
@@ -2348,15 +2349,15 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
         });
 
         if (error) {
-          console.error("Login error:", error);
+         
           throw error;
         }
 
-        console.log("Login response:", data);
+       
 
       
         if (!data.user.email_confirmed_at) {
-          console.log("Email not confirmed");
+         
           await supabase.auth.signOut();
           throw new Error(
             "Please verify your email before logging in. Check your inbox for the verification link."
@@ -2370,11 +2371,11 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
           .eq("id", data.user.id)
           .single();
 
-        console.log("Profile check:", profile, profileError);
+        
 
         if (profileError && profileError.code !== "PGRST116") {
           
-          console.error("Profile error:", profileError);
+          
           await supabase.auth.signOut();
           throw new Error(
             "Unable to verify account status. Please contact support."
@@ -2382,7 +2383,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
         }
 
         if (profile && profile.deleted === true) {
-          console.log("Account is deleted");
+         
           await supabase.auth.signOut();
           throw new Error(
             "Your account has been deactivated. Please contact support at support@bodyforge.com for assistance."
@@ -2394,7 +2395,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
         onClose();
       } else {
        
-        console.log("Checking if email exists:", formData.email);
+        
 
         const { data: existingProfile, error: profileCheckError } =
           await supabase
@@ -2403,11 +2404,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
             .eq("email", formData.email)
             .maybeSingle();
 
-        console.log(
-          "Profile check result:",
-          existingProfile,
-          profileCheckError
-        );
+        
 
         if (existingProfile) {
          
@@ -2423,7 +2420,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
         }
 
         
-        console.log("Email available, proceeding with signup");
+        
 
         const { data, error } = await supabase.auth.signUp({
           email: formData.email,
@@ -2438,7 +2435,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
         });
 
         if (error) {
-          console.error("Signup error:", error);
+          
 
           
           if (error.message.includes("User already registered")) {
@@ -2462,7 +2459,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
           throw error;
         }
 
-        console.log("Signup response:", data);
+       
 
       
         if (!data.user) {
@@ -2489,11 +2486,7 @@ const AuthModal = ({ isOpen, onClose, onSuccess, showToast }) => {
         onClose();
       }
     } catch (err) {
-      console.error("Authentication error details:", {
-        message: err.message,
-        error: err,
-        stack: err.stack,
-      });
+      
 
      
       let errorMessage = err.message;
@@ -2765,12 +2758,11 @@ export default function App() {
   }, []);
   useEffect(() => {
     const checkSupabaseConfig = async () => {
-      console.log("Supabase URL:", supabaseUrl);
-      console.log("Supabase Anon Key exists:", !!supabaseAnonKey);
+      
 
       
       const { data, error } = await supabase.auth.getSession();
-      console.log("Supabase connection test:", { data, error });
+      
     };
 
     checkSupabaseConfig();
@@ -2823,7 +2815,7 @@ useEffect(() => {
       const { data: { session }, error } = await supabase.auth.getSession();
       
       if (error) {
-        console.error('Session error:', error);
+        
         setUser(null);
       } else if (session?.user) {
         setUser(session.user);
@@ -2831,7 +2823,7 @@ useEffect(() => {
         setUser(null);
       }
     } catch (err) {
-      console.error('Auth initialization error:', err);
+      
       setUser(null);
     } finally {
       setLoading(false);
@@ -2843,7 +2835,7 @@ useEffect(() => {
  
   const { data: authListener } = supabase.auth.onAuthStateChange(
     async (event, session) => {
-      console.log('Auth event:', event);
+     
       
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         setUser(session?.user ?? null);
@@ -2874,7 +2866,7 @@ useEffect(() => {
         filter: `id=eq.${user.id}`
       },
       async (payload) => {
-        console.log('Profile change detected:', payload);
+       
         
         
         if (payload.eventType === 'UPDATE' && payload.new.deleted === true) {

@@ -29,7 +29,7 @@ const createNotification = async (userId, type, title, message, relatedId = null
     if (error) throw error;
     return { success: true };
   } catch (err) {
-    console.error('Failed to create notification:', err);
+    
     return { success: false, error: err.message };
   }
 };
@@ -504,14 +504,7 @@ const disableUser = async (userId, userEmail) => {
     if (error) throw error;
 
     
-    try {
-      const { error: rpcError } = await supabase.rpc('admin_sign_out_user', { user_id: userId });
-      if (rpcError) {
-        console.log('Session invalidation not available:', rpcError);
-      }
-    } catch (rpcErr) {
-      console.log('RPC function not found - user will be disabled but may need to refresh to be logged out');
-    }
+   
 
     showToast('User disabled successfully', 'success');
     await loadUsers();
@@ -736,7 +729,7 @@ const attachMembership = async (e) => {
     }, 100);
     
   } catch (err) {
-    console.error('Attach membership error:', err);
+    
     showToast(err.message, 'error');
   }
 };
@@ -1442,7 +1435,7 @@ useEffect(() => {
         table: 'class_bookings'
       },
       () => {
-        console.log('Class booking changed');
+       
         loadBookings(); 
       }
     )
@@ -1454,7 +1447,7 @@ useEffect(() => {
         table: 'trainer_sessions'
       },
       () => {
-        console.log('Trainer session changed');
+       
         loadBookings(); 
       }
     )
@@ -1552,7 +1545,7 @@ const updateBookingStatus = async (id, status, type) => {
     }, 100);
     
   } catch (err) {
-    console.error('Update booking status error:', err);
+    
     showToast(err.message, 'error');
   }
 };
@@ -1993,7 +1986,7 @@ const sendResponse = async () => {
       showToast('Failed to send response email', 'error');
     }
   } catch (err) {
-    console.error('Send response error:', err);
+    
     showToast(err.message, 'error');
   }
 };
